@@ -38,6 +38,7 @@ export async function getEvaluationResults(params: {
   evaluation_status?: string
   issue_type?: string
   version_id?: number
+  evaluation_judgment?: string
 }) {
   const searchParams = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {

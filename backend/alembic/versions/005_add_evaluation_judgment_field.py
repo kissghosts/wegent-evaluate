@@ -8,6 +8,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import inspect
 
 revision: str = "005"
 down_revision: Union[str, None] = "004"
@@ -18,24 +19,42 @@ depends_on: Union[str, Sequence[str], None] = None
 EVALUATION_CORE_THRESHOLD = 0.6
 
 
-def upgrade() -> None:
-    # Add evaluation_judgment column to evaluation_results table
-    op.add_column(
-        "evaluation_results",
-        sa.Column(
-            "evaluation_judgment",
-            sa.String(20),
-            nullable=True,
-            comment="Three-state evaluation judgment: pass/fail/undetermined",
-        ),
-    )
+def column_exists(table_name: str, column_name: str) -> bool:
+    """Check if a column exists in the table."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = [col["name"] for col in inspector.get_columns(table_name)]
+    return column_name in columns
 
-    # Create index for evaluation_judgment
-    op.create_index(
-        "idx_evaluation_judgment",
-        "evaluation_results",
-        ["evaluation_judgment"],
-    )
+
+def index_exists(table_name: str, index_name: str) -> bool:
+    """Check if an index exists on the table."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    indexes = [idx["name"] for idx in inspector.get_indexes(table_name)]
+    return index_name in indexes
+
+
+def upgrade() -> None:
+    # Add evaluation_judgment column to evaluation_results table (if not exists)
+    if not column_exists("evaluation_results", "evaluation_judgment"):
+        op.add_column(
+            "evaluation_results",
+            sa.Column(
+                "evaluation_judgment",
+                sa.String(20),
+                nullable=True,
+                comment="Three-state evaluation judgment: pass/fail/undetermined",
+            ),
+        )
+
+    # Create index for evaluation_judgment (if not exists)
+    if not index_exists("evaluation_results", "idx_evaluation_judgment"):
+        op.create_index(
+            "idx_evaluation_judgment",
+            "evaluation_results",
+            ["evaluation_judgment"],
+        )
 
     # Backfill evaluation_judgment for existing records
     # Three-state logic:

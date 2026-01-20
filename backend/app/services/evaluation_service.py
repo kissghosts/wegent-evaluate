@@ -450,6 +450,7 @@ class EvaluationService:
                 # Update existing evaluation
                 self._update_evaluation_result(
                     evaluation,
+                    record,
                     ragas_result,
                     ragas_emb_result,
                     ragas_llm_ext_result,
@@ -469,6 +470,8 @@ class EvaluationService:
                 # Create new evaluation with sanitized float values
                 evaluation = EvaluationResult(
                     conversation_record_id=record_id,
+                    # Version ID from conversation record
+                    version_id=record.version_id,
                     # Legacy RAGAS scores (sanitized)
                     faithfulness_score=sanitized_faithfulness,
                     answer_relevancy_score=sanitized_answer_relevancy,
@@ -563,6 +566,7 @@ class EvaluationService:
     def _update_evaluation_result(
         self,
         evaluation: EvaluationResult,
+        record: ConversationRecord,
         ragas_result: Dict,
         ragas_emb_result: Dict,
         ragas_llm_ext_result: Dict,
@@ -579,6 +583,8 @@ class EvaluationService:
         Note: cv_result and diagnostic_results should already be sanitized
         by the caller to handle NaN values in JSON fields.
         """
+        # Update version_id from conversation record
+        evaluation.version_id = record.version_id
         # Legacy RAGAS scores (sanitized)
         evaluation.faithfulness_score = sanitize_float(
             ragas_result.get("faithfulness_score")
@@ -691,6 +697,7 @@ class EvaluationService:
         has_cv_alert: Optional[bool] = None,
         issue_type: Optional[str] = None,
         version_id: Optional[int] = None,
+        evaluation_judgment: Optional[str] = None,
     ) -> tuple[List[Dict[str, Any]], int]:
         """Get evaluation results with filtering and pagination."""
         from app.services.filter_utils import apply_user_filter
@@ -744,6 +751,11 @@ class EvaluationService:
                     func.json_quote(issue_type),
                 )
                 == 1
+            )
+        if evaluation_judgment:
+            # Filter by evaluation_judgment: pass, fail, or undetermined
+            conditions.append(
+                EvaluationResult.evaluation_judgment == evaluation_judgment
             )
 
         if conditions:
@@ -917,7 +929,11 @@ class EvaluationService:
         end_date: Optional[datetime] = None,
         version_id: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Get summary statistics for evaluation results."""
+        """Get summary statistics for evaluation results.
+
+        Note: Metrics averages exclude records with evaluation_judgment='undetermined'
+        to ensure accurate statistics based on valid evaluation data.
+        """
         from app.services.filter_utils import apply_user_filter
 
         conditions = []
@@ -948,7 +964,13 @@ class EvaluationService:
         count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0
 
-        # Get averages
+        # Build conditions for metrics calculation (exclude undetermined)
+        metrics_conditions = conditions.copy()
+        metrics_conditions.append(
+            EvaluationResult.evaluation_judgment != "undetermined"
+        )
+
+        # Get averages (excluding undetermined records for accurate metrics)
         avg_query = select(
             func.avg(EvaluationResult.faithfulness_score),
             func.avg(EvaluationResult.answer_relevancy_score),
@@ -976,8 +998,9 @@ class EvaluationService:
         )
         # Apply user ID exclusion filter
         avg_query = apply_user_filter(avg_query)
-        if conditions:
-            avg_query = avg_query.where(and_(*conditions))
+        # Apply metrics conditions (including undetermined exclusion)
+        if metrics_conditions:
+            avg_query = avg_query.where(and_(*metrics_conditions))
 
         avg_result = await self.db.execute(avg_query)
         row = avg_result.first()

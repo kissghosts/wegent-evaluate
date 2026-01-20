@@ -12,6 +12,7 @@ interface Filters {
   start_date: string
   end_date: string
   evaluation_status: string
+  evaluation_judgment: string
 }
 
 export default function ResultsPage() {
@@ -29,6 +30,7 @@ export default function ResultsPage() {
     start_date: '',
     end_date: '',
     evaluation_status: '',
+    evaluation_judgment: '',
   })
 
   const fetchResults = useCallback(async () => {
@@ -48,6 +50,9 @@ export default function ResultsPage() {
       }
       if (filters.evaluation_status) {
         params.evaluation_status = filters.evaluation_status
+      }
+      if (filters.evaluation_judgment) {
+        params.evaluation_judgment = filters.evaluation_judgment
       }
       if (currentVersion?.id) {
         params.version_id = currentVersion.id
@@ -123,6 +128,16 @@ export default function ResultsPage() {
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
             <option value="skipped">Skipped</option>
+          </select>
+          <select
+            value={filters.evaluation_judgment}
+            onChange={(e) => handleFilterChange('evaluation_judgment', e.target.value)}
+            className="rounded-md border bg-background px-3 py-1.5 text-sm"
+          >
+            <option value="">{t('results.passStatus', 'Pass/Fail')} - All</option>
+            <option value="pass">{t('metrics.passed', 'Passed')}</option>
+            <option value="fail">{t('metrics.failed', 'Failed')}</option>
+            <option value="undetermined">{t('metrics.undetermined', 'N/A')}</option>
           </select>
           <button
             onClick={handleSearch}

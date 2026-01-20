@@ -121,6 +121,9 @@ async def get_evaluation_results(
     evaluation_status: Optional[str] = None,
     issue_type: Optional[str] = Query(None, description="Filter by issue type"),
     version_id: Optional[int] = Query(None, description="Filter by version ID"),
+    evaluation_judgment: Optional[str] = Query(
+        None, description="Filter by evaluation judgment: pass, fail, or undetermined"
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Get evaluation results with filtering and pagination."""
@@ -140,6 +143,7 @@ async def get_evaluation_results(
         has_cv_alert=has_cv_alert,
         issue_type=issue_type,
         version_id=version_id,
+        evaluation_judgment=evaluation_judgment,
     )
 
     total_pages = (total + page_size - 1) // page_size
