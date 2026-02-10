@@ -3,12 +3,15 @@ API router configuration.
 """
 from fastapi import APIRouter
 
-from app.api.endpoints import analytics, config, evaluation, health, reports, sync, version
+from app.api.endpoints import analytics, config, daily, evaluation, health, reports, sync, version
 
 api_router = APIRouter()
 
 # Health check endpoints
 api_router.include_router(health.router, tags=["health"])
+
+# Daily report endpoints (new)
+api_router.include_router(daily.router, prefix="/daily", tags=["daily"])
 
 # Sync endpoints
 api_router.include_router(sync.router, prefix="/sync", tags=["sync"])

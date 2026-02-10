@@ -26,15 +26,39 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "knowledgeBases": "Knowledge Bases",
     "results": "Results",
     "trends": "Trends",
     "comparison": "Comparison",
     "issues": "Issues",
     "metricsDocs": "Metrics Docs",
-    "settings": "Settings"
+    "settings": "Settings",
+    "evaluationCenter": "Evaluation Center"
   },
   "dashboard": {
-    "title": "Dashboard",
+    "title": "RAG Daily Report",
+    "totalQueries": "Total Queries",
+    "ragRetrieval": "RAG Retrieval",
+    "directInjection": "Direct Injection",
+    "selectedDocuments": "Selected Documents",
+    "activeKnowledgeBases": "Active KBs",
+    "activeUsers": "Active Users",
+    "todayVsYesterday": "vs yesterday",
+    "queryTrend": "Query Trend",
+    "last7Days": "Last 7 Days",
+    "last30Days": "Last 30 Days",
+    "topKnowledgeBases": "Top 10 Knowledge Bases",
+    "rank": "Rank",
+    "knowledgeBaseName": "Name",
+    "namespace": "Namespace",
+    "queries": "Queries",
+    "primaryMode": "Primary Mode",
+    "viewDetail": "View Detail",
+    "noDataYet": "No data yet. Please configure Raw DB and trigger sync.",
+    "syncStatus": "Sync Status",
+    "lastSync": "Last Sync",
+    "triggerSync": "Trigger Sync",
+    "syncing": "Syncing...",
     "totalRecords": "Total Records",
     "evaluated": "Evaluated",
     "pending": "Pending",
@@ -49,7 +73,6 @@
     "recentTrend": "Recent 7 Days Trend",
     "recentIssues": "Recent Issues",
     "quickActions": "Quick Actions",
-    "triggerSync": "Trigger Sync",
     "triggerEvaluation": "Trigger Evaluation"
   },
   "results": {
@@ -272,5 +295,42 @@
     "copied": "Copied!",
     "error_select_version": "Please select a version",
     "error_generate": "Failed to generate report"
+  },
+  "knowledgeBase": {
+    "title": "Knowledge Bases",
+    "detail": "Knowledge Base Detail",
+    "config": "Configuration",
+    "retriever": "Retriever",
+    "embeddingModel": "Embedding Model",
+    "topK": "Top K",
+    "scoreThreshold": "Score Threshold",
+    "retrievalMode": "Retrieval Mode",
+    "kbType": "Type",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "recentQueries": "Recent Queries",
+    "queryContent": "Query",
+    "mode": "Mode",
+    "chunksCount": "Chunks",
+    "evaluationStatus": "Eval Status",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "sources": "Sources",
+    "triggerEvaluation": "Evaluate",
+    "modeDistribution": "Mode Distribution",
+    "usageTrend": "Usage Trend"
+  },
+  "ragMode": {
+    "rag_retrieval": "RAG Retrieval",
+    "direct_injection": "Direct Injection",
+    "selected_documents": "Selected Documents",
+    "unknown": "Unknown"
+  },
+  "evalStatus": {
+    "pending": "Pending",
+    "completed": "Completed",
+    "failed": "Failed",
+    "skipped": "Skipped"
   }
 }

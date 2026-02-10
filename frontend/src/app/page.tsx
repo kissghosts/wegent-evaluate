@@ -1,85 +1,154 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ScoreCard } from '@/components/charts/score-card'
-import { TrendChart } from '@/components/charts/trend-chart'
+import { useRouter } from 'next/navigation'
 import {
-  BarChart3,
-  AlertTriangle,
+  Activity,
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  BookOpen,
+  Database,
+  FileSearch,
+  FileText,
   Loader2,
-  ShieldAlert,
-  Trophy,
-  XCircle,
-  Target,
-  Zap,
-  Search,
+  RefreshCw,
+  TrendingUp,
+  Users,
 } from 'lucide-react'
-import { getEvaluationSummary } from '@/apis/evaluation'
-import { getTrends } from '@/apis/analytics'
-import { EvaluationSummary, TrendDataPoint } from '@/types'
-import { useVersion } from '@/contexts/VersionContext'
+import {
+  getDailyOverview,
+  getDailyTrends,
+  getTopKnowledgeBases,
+  getSyncStatus,
+  triggerSync,
+  DailyOverviewResponse,
+  TrendsResponse,
+  KnowledgeBaseItem,
+  SyncStatus,
+} from '@/apis/daily'
+import {
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+} from 'recharts'
+
+// Stat card component
+function StatCard({
+  title,
+  value,
+  change,
+  icon: Icon,
+  color = 'blue',
+}: {
+  title: string
+  value: number | string
+  change?: number | null
+  icon: React.ElementType
+  color?: string
+}) {
+  const colorClasses: Record<string, { bg: string; text: string; iconBg: string }> = {
+    blue: { bg: 'bg-blue-50', text: 'text-blue-600', iconBg: 'bg-blue-100' },
+    green: { bg: 'bg-green-50', text: 'text-green-600', iconBg: 'bg-green-100' },
+    purple: { bg: 'bg-purple-50', text: 'text-purple-600', iconBg: 'bg-purple-100' },
+    orange: { bg: 'bg-orange-50', text: 'text-orange-600', iconBg: 'bg-orange-100' },
+    cyan: { bg: 'bg-cyan-50', text: 'text-cyan-600', iconBg: 'bg-cyan-100' },
+  }
+
+  const colors = colorClasses[color] || colorClasses.blue
+
+  return (
+    <div className={`rounded-lg border p-4 ${colors.bg}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">{title}</p>
+          <p className="text-2xl font-bold mt-1">{value}</p>
+          {change !== undefined && change !== null && (
+            <div className="flex items-center mt-1 text-sm">
+              {change > 0 ? (
+                <ArrowUp className="h-3 w-3 text-green-500 mr-1" />
+              ) : change < 0 ? (
+                <ArrowDown className="h-3 w-3 text-red-500 mr-1" />
+              ) : (
+                <ArrowRight className="h-3 w-3 text-gray-500 mr-1" />
+              )}
+              <span className={change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : 'text-gray-500'}>
+                {Math.abs(change).toFixed(1)}%
+              </span>
+            </div>
+          )}
+        </div>
+        <div className={`rounded-full p-3 ${colors.iconBg}`}>
+          <Icon className={`h-6 w-6 ${colors.text}`} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Format mode name
+function formatModeName(mode: string, t: (key: string) => string): string {
+  const modeKey = `ragMode.${mode}`
+  return t(modeKey) || mode
+}
 
 export default function DashboardPage() {
   const { t } = useTranslation()
-  const { currentVersion } = useVersion()
-  const [summary, setSummary] = useState<EvaluationSummary | null>(null)
-  const [trendData, setTrendData] = useState<TrendDataPoint[]>([])
+  const router = useRouter()
+
+  const [overview, setOverview] = useState<DailyOverviewResponse | null>(null)
+  const [trends, setTrends] = useState<TrendsResponse | null>(null)
+  const [topKbs, setTopKbs] = useState<KnowledgeBaseItem[]>([])
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null)
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [trendDays, setTrendDays] = useState(7)
 
-  // Calculate date range for last 7 days
-  const getDateRange = () => {
-    const end = new Date()
-    const start = new Date()
-    start.setDate(start.getDate() - 7)
-    return {
-      start_date: start.toISOString(),
-      end_date: end.toISOString(),
-    }
-  }
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const dateRange = getDateRange()
-      const versionId = currentVersion?.id
-
-      // Fetch summary and trends in parallel
-      const [summaryData, trendsData] = await Promise.all([
-        getEvaluationSummary({ ...dateRange, version_id: versionId }),
-        getTrends({ ...dateRange, metric: 'overall', group_by: 'day', version_id: versionId }),
+      const [overviewData, trendsData, topKbsData, syncStatusData] = await Promise.all([
+        getDailyOverview(),
+        getDailyTrends({ days: trendDays }),
+        getTopKnowledgeBases({ limit: 10 }),
+        getSyncStatus(),
       ])
 
-      setSummary(summaryData)
-      setTrendData(trendsData.data || [])
+      setOverview(overviewData)
+      setTrends(trendsData)
+      setTopKbs(topKbsData.items)
+      setSyncStatus(syncStatusData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
-      // Set default values on error
-      setSummary({
-        total_evaluated: 0,
-        avg_faithfulness: undefined,
-        avg_answer_relevancy: undefined,
-        avg_context_precision: undefined,
-        avg_overall: undefined,
-        issue_count: 0,
-        issue_rate: 0,
-        cv_alert_count: 0,
-        cv_alert_rate: 0,
-        avg_total_score: undefined,
-        failed_count: 0,
-        failed_rate: 0,
-      })
-      setTrendData([])
     } finally {
       setLoading(false)
     }
-  }
+  }, [trendDays])
 
   useEffect(() => {
     fetchData()
-  }, [currentVersion])
+  }, [fetchData])
+
+  const handleTriggerSync = async () => {
+    setSyncing(true)
+    try {
+      await triggerSync('hourly')
+      // Refresh data after sync
+      await fetchData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to trigger sync')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -90,9 +159,33 @@ export default function DashboardPage() {
     )
   }
 
+  const hasData = overview && overview.summary.total_queries > 0
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">{t('dashboard.title')}</h1>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">{t('dashboard.title')}</h1>
+        <div className="flex items-center gap-2">
+          {syncStatus && (
+            <span className="text-sm text-muted-foreground">
+              {syncStatus.hourly?.last_sync_time && (
+                <>
+                  {t('dashboard.lastSync')}: {new Date(syncStatus.hourly.last_sync_time).toLocaleString()}
+                </>
+              )}
+            </span>
+          )}
+          <button
+            onClick={handleTriggerSync}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? t('dashboard.syncing') : t('dashboard.triggerSync')}
+          </button>
+        </div>
+      </div>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
@@ -100,195 +193,209 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Primary Stats Grid - Total Score + Key Stats */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6">
-        {/* Total Score Card - Prominent */}
-        <div className="lg:col-span-2 rounded-lg border-2 border-primary/30 bg-primary/5 p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="rounded-full bg-primary/20 p-2">
-              <Trophy className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t('metrics.totalScore', 'Total Score')}
-              </p>
-              <p className="text-3xl font-bold text-primary">
-                {summary?.avg_total_score ? summary.avg_total_score.toFixed(1) : '-'}
-                <span className="text-sm font-normal text-muted-foreground"> / 100</span>
-              </p>
-            </div>
+      {!hasData ? (
+        <div className="rounded-lg border bg-card p-8 text-center">
+          <Database className="mx-auto h-12 w-12 text-muted-foreground" />
+          <p className="mt-4 text-muted-foreground">{t('dashboard.noDataYet')}</p>
+          {!syncStatus?.raw_db_configured && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Raw DB: Not configured
+            </p>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <StatCard
+              title={t('dashboard.totalQueries')}
+              value={overview.summary.total_queries}
+              change={overview.comparison?.total_queries_change}
+              icon={Activity}
+              color="blue"
+            />
+            <StatCard
+              title={t('dashboard.ragRetrieval')}
+              value={overview.summary.rag_retrieval_count}
+              change={overview.comparison?.rag_retrieval_change}
+              icon={FileSearch}
+              color="green"
+            />
+            <StatCard
+              title={t('dashboard.directInjection')}
+              value={overview.summary.direct_injection_count}
+              icon={FileText}
+              color="purple"
+            />
+            <StatCard
+              title={t('dashboard.selectedDocuments')}
+              value={overview.summary.selected_documents_count}
+              icon={BookOpen}
+              color="orange"
+            />
+            <StatCard
+              title={t('dashboard.activeKnowledgeBases')}
+              value={overview.summary.active_kb_count}
+              icon={Users}
+              color="cyan"
+            />
           </div>
-          <p className="text-xs text-muted-foreground">
-            {t('metrics.hardThresholdWarning', 'Faithfulness or Groundedness < 60% = Failed')}
-          </p>
-        </div>
 
-        {/* Total Evaluated */}
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-blue-100 p-2">
-              <BarChart3 className="h-5 w-5 text-blue-600" />
+          {/* Trend Chart */}
+          <div className="rounded-lg border bg-card p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">{t('dashboard.queryTrend')}</h2>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTrendDays(7)}
+                  className={`px-3 py-1 text-sm rounded ${
+                    trendDays === 7 ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                  }`}
+                >
+                  {t('dashboard.last7Days')}
+                </button>
+                <button
+                  onClick={() => setTrendDays(30)}
+                  className={`px-3 py-1 text-sm rounded ${
+                    trendDays === 30 ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                  }`}
+                >
+                  {t('dashboard.last30Days')}
+                </button>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t('dashboard.evaluated')}
-              </p>
-              <p className="text-2xl font-semibold">
-                {summary?.total_evaluated ?? 0}
-              </p>
-            </div>
+
+            {trends && trends.data.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={trends.data}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) => {
+                      const date = new Date(value)
+                      return `${date.getMonth() + 1}/${date.getDate()}`
+                    }}
+                  />
+                  <YAxis />
+                  <Tooltip
+                    labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                  />
+                  <Legend />
+                  <Area
+                    type="monotone"
+                    dataKey="rag_retrieval_count"
+                    name={t('dashboard.ragRetrieval')}
+                    stackId="1"
+                    stroke="#22c55e"
+                    fill="#22c55e"
+                    fillOpacity={0.6}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="direct_injection_count"
+                    name={t('dashboard.directInjection')}
+                    stackId="1"
+                    stroke="#a855f7"
+                    fill="#a855f7"
+                    fillOpacity={0.6}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="selected_documents_count"
+                    name={t('dashboard.selectedDocuments')}
+                    stackId="1"
+                    stroke="#f97316"
+                    fill="#f97316"
+                    fillOpacity={0.6}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+                {t('common.noData')}
+              </div>
+            )}
           </div>
-        </div>
 
-        {/* Failed Samples */}
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-red-100 p-2">
-              <XCircle className="h-5 w-5 text-red-600" />
+          {/* Top Knowledge Bases */}
+          <div className="rounded-lg border bg-card p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Database className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">{t('dashboard.topKnowledgeBases')}</h2>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t('dashboard.failedSamples', 'Failed Samples')}
-              </p>
-              <p className="text-2xl font-semibold">
-                {summary?.failed_count ?? 0}{' '}
-                <span className="text-sm font-normal text-muted-foreground">
-                  ({((summary?.failed_rate ?? 0) * 100).toFixed(1)}%)
-                </span>
-              </p>
-            </div>
+
+            {topKbs.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-left text-sm text-muted-foreground">
+                      <th className="pb-3 pr-4">{t('dashboard.rank')}</th>
+                      <th className="pb-3 pr-4">{t('dashboard.knowledgeBaseName')}</th>
+                      <th className="pb-3 pr-4">{t('dashboard.namespace')}</th>
+                      <th className="pb-3 pr-4 text-right">{t('dashboard.queries')}</th>
+                      <th className="pb-3 pr-4">{t('dashboard.primaryMode')}</th>
+                      <th className="pb-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topKbs.map((kb) => (
+                      <tr
+                        key={kb.knowledge_id}
+                        className="border-b last:border-0 hover:bg-muted/50 cursor-pointer"
+                        onClick={() => router.push(`/knowledge-bases/${kb.knowledge_id}`)}
+                      >
+                        <td className="py-3 pr-4">
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-sm font-medium">
+                            {kb.rank}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-4 font-medium">
+                          {kb.knowledge_name || `KB-${kb.knowledge_id}`}
+                        </td>
+                        <td className="py-3 pr-4 text-muted-foreground">
+                          {kb.namespace || 'default'}
+                        </td>
+                        <td className="py-3 pr-4 text-right font-medium">
+                          {kb.total_queries}
+                        </td>
+                        <td className="py-3 pr-4">
+                          <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                            kb.primary_mode === 'rag_retrieval'
+                              ? 'bg-green-100 text-green-700'
+                              : kb.primary_mode === 'direct_injection'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-orange-100 text-orange-700'
+                          }`}>
+                            {formatModeName(kb.primary_mode || 'unknown', t)}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <button
+                            className="text-sm text-primary hover:underline"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              router.push(`/knowledge-bases/${kb.knowledge_id}`)
+                            }}
+                          >
+                            {t('dashboard.viewDetail')} →
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                {t('common.noData')}
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Issues */}
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-yellow-100 p-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t('dashboard.issues')}
-              </p>
-              <p className="text-2xl font-semibold">
-                {summary?.issue_count ?? 0}{' '}
-                <span className="text-sm font-normal text-muted-foreground">
-                  ({((summary?.issue_rate ?? 0) * 100).toFixed(1)}%)
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* CV Alerts */}
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-purple-100 p-2">
-              <ShieldAlert className="h-5 w-5 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t('dashboard.cvAlerts')}
-              </p>
-              <p className="text-2xl font-semibold">
-                {summary?.cv_alert_count ?? 0}{' '}
-                <span className="text-sm font-normal text-muted-foreground">
-                  ({((summary?.cv_alert_rate ?? 0) * 100).toFixed(1)}%)
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Core Metrics (Tier 1) - Most Important */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Target className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">{t('metrics.tiers.core', 'Core Metrics (Tier 1)')}</h2>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <ScoreCard
-            title={t('dashboard.avgFaithfulness')}
-            score={summary?.avg_faithfulness ?? undefined}
-            subtitle="RAGAS"
-          />
-          <ScoreCard
-            title={t('resultDetail.groundedness', 'Groundedness')}
-            score={summary?.avg_trulens_groundedness ?? undefined}
-            subtitle="TruLens"
-          />
-          <ScoreCard
-            title={t('resultDetail.queryContextRelevance', 'Query Context Relevance')}
-            score={summary?.avg_ragas_query_context_relevance ?? undefined}
-            subtitle="RAGAS"
-          />
-          <ScoreCard
-            title={t('resultDetail.contextRelevance', 'Context Relevance')}
-            score={summary?.avg_trulens_context_relevance ?? undefined}
-            subtitle="TruLens"
-          />
-        </div>
-      </div>
-
-      {/* Key Metrics (Tier 2) */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Zap className="h-5 w-5 text-yellow-600" />
-          <h2 className="text-lg font-semibold">{t('metrics.tiers.key', 'Key Metrics (Tier 2)')}</h2>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <ScoreCard
-            title={t('dashboard.avgAnswerRelevancy')}
-            score={summary?.avg_answer_relevancy ?? undefined}
-            subtitle="RAGAS"
-          />
-          <ScoreCard
-            title={t('resultDetail.relevanceLlm', 'Relevance (LLM)')}
-            score={summary?.avg_trulens_relevance_llm ?? undefined}
-            subtitle="TruLens"
-          />
-          <ScoreCard
-            title={t('resultDetail.contextPrecision', 'Context Precision')}
-            score={summary?.avg_ragas_context_precision_emb ?? undefined}
-            subtitle="RAGAS (Embedding)"
-          />
-        </div>
-      </div>
-
-      {/* Legacy Overall Score */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Search className="h-5 w-5 text-muted-foreground" />
-          <h2 className="text-lg font-semibold text-muted-foreground">
-            {t('metrics.tiers.diagnostic', 'Diagnostic Metrics (Tier 3)')}
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <ScoreCard
-            title={t('dashboard.avgContextPrecision')}
-            score={summary?.avg_context_precision ?? undefined}
-            subtitle="RAGAS (LLM)"
-          />
-          <ScoreCard
-            title={t('dashboard.avgOverall')}
-            score={summary?.avg_overall ?? undefined}
-            subtitle="Legacy"
-          />
-        </div>
-      </div>
-
-      {/* Trend Chart */}
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="mb-4 text-lg font-semibold">{t('dashboard.recentTrend')}</h2>
-        {trendData.length > 0 ? (
-          <TrendChart data={trendData} />
-        ) : (
-          <div className="flex h-[300px] items-center justify-center text-muted-foreground">
-            {t('common.noData')}
-          </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   )
 }
