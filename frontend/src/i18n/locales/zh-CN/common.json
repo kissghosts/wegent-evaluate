@@ -320,7 +320,8 @@
     "sources": "来源",
     "triggerEvaluation": "评测",
     "modeDistribution": "模式分布",
-    "usageTrend": "使用趋势"
+    "usageTrend": "使用趋势",
+    "recent7dUsage": "近7日使用量"
   },
   "queries": {
     "title": "查询记录",
