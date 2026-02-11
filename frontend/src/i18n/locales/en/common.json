@@ -27,6 +27,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "knowledgeBases": "Knowledge Bases",
+    "queries": "Queries",
     "results": "Results",
     "trends": "Trends",
     "comparison": "Comparison",
@@ -320,6 +321,12 @@
     "triggerEvaluation": "Evaluate",
     "modeDistribution": "Mode Distribution",
     "usageTrend": "Usage Trend"
+  },
+  "queries": {
+    "title": "Query Records",
+    "filterByMode": "Filter by Mode",
+    "allModes": "All Modes",
+    "noKnowledgeBase": "No KB"
   },
   "ragMode": {
     "rag_retrieval": "RAG Retrieval",

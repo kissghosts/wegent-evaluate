@@ -27,6 +27,7 @@
   "nav": {
     "dashboard": "总览",
     "knowledgeBases": "知识库",
+    "queries": "查询记录",
     "results": "评估结果",
     "trends": "趋势分析",
     "comparison": "对比分析",
@@ -320,6 +321,12 @@
     "triggerEvaluation": "评测",
     "modeDistribution": "模式分布",
     "usageTrend": "使用趋势"
+  },
+  "queries": {
+    "title": "查询记录",
+    "filterByMode": "按模式筛选",
+    "allModes": "全部模式",
+    "noKnowledgeBase": "无关联知识库"
   },
   "ragMode": {
     "rag_retrieval": "RAG 检索",

@@ -160,17 +160,18 @@ async def get_hourly_stats(
 @router.get("/knowledge-bases", response_model=KnowledgeBaseListResponse)
 async def get_knowledge_bases(
     q: Optional[str] = Query(None, description="Search by id / creator / name / namespace"),
-    sort_by: str = Query("id", description="Sort by: id | name | created_by"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get paginated global list of knowledge bases (from Raw DB)."""
+    """Get paginated global list of knowledge bases (from Raw DB).
+
+    Results are sorted by recent 7-day usage (descending), then by id (descending).
+    """
     service = DailyReportService(db)
     offset = (page - 1) * page_size
     items, total = await service.get_knowledge_base_list(
         q=q,
-        sort_by=sort_by,
         limit=page_size,
         offset=offset,
     )
@@ -255,6 +256,38 @@ async def get_knowledge_base_queries(
         offset=offset,
         injection_mode=injection_mode,
         evaluation_status=evaluation_status,
+    )
+    return QueryListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+# ============ Global Query Endpoints ============
+
+@router.get("/queries", response_model=QueryListResponse)
+async def get_global_queries(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    injection_mode: Optional[str] = Query(None, description="Filter by injection mode (rag_retrieval, direct_injection, selected_documents)"),
+    start_date: Optional[date] = Query(None, description="Filter by start date"),
+    end_date: Optional[date] = Query(None, description="Filter by end date"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get global query list (all queries across all knowledge bases).
+
+    Returns queries with associated knowledge base information.
+    """
+    service = DailyReportService(db)
+    offset = (page - 1) * page_size
+    items, total = await service.get_global_queries(
+        limit=page_size,
+        offset=offset,
+        injection_mode=injection_mode,
+        start_date=start_date,
+        end_date=end_date,
     )
     return QueryListResponse(
         items=items,

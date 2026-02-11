@@ -371,7 +371,6 @@ class DailyReportService:
     async def get_knowledge_base_list(
         self,
         q: Optional[str] = None,
-        sort_by: str = "id",
         limit: int = 50,
         offset: int = 0,
     ) -> Tuple[List[Dict[str, Any]], int]:
@@ -380,28 +379,28 @@ class DailyReportService:
         Used by the left sidebar navigation page `/knowledge-bases`.
 
         注意：
-        - Raw DB 提供“目录信息”（名称/namespace/creator/描述/类型/创建时间等）
-        - “最近 7 天是否使用 / 查询量”来自本地统计表 `kb_daily_stats` 的聚合
+        - Raw DB 提供"目录信息"（名称/namespace/creator/描述/类型/创建时间等）
+        - "最近 7 天是否使用 / 查询量"来自本地统计表 `kb_daily_stats` 的聚合
+        - 排序逻辑：按最近7天使用数量倒序，未使用的按id倒序
 
         Args:
             q: Search keyword (id / creator id / name / namespace / creator user_name)
-            sort_by: 'id' | 'name' | 'created_by'
             limit: Page size
             offset: Offset
 
         Returns:
             (items, total)
         """
-        items, total = await self.raw_tm.list_knowledge_bases(
-            limit=limit,
-            offset=offset,
+        # Get all matching items from Raw DB (no pagination at raw level, we sort in memory)
+        all_items, total = await self.raw_tm.list_knowledge_bases(
+            limit=10000,  # Get all for sorting
+            offset=0,
             q=q,
-            sort_by=sort_by,
         )
 
-        # Recent 7d usage overlay from local stats
+        # Collect all kb_ids
         kb_ids: List[int] = []
-        for it in items:
+        for it in all_items:
             kb_id = it.get("knowledge_id")
             if kb_id is None:
                 continue
@@ -410,6 +409,7 @@ class DailyReportService:
             except Exception:
                 continue
 
+        # Get recent 7d usage from local stats
         recent_by_kb: Dict[int, int] = {}
         if kb_ids:
             end_date = date.today()
@@ -430,10 +430,9 @@ class DailyReportService:
             for row in result.all():
                 recent_by_kb[int(row.knowledge_id)] = int(row.total_queries or 0)
 
-        # Keep response shape compatible with KnowledgeBaseItem used by frontend.
-        # Stats fields are not available in global list; return 0.
+        # Build normalized items with usage stats
         normalized: List[Dict[str, Any]] = []
-        for it in items:
+        for it in all_items:
             kb_id = it.get("knowledge_id")
             kb_id_int = int(kb_id) if kb_id is not None else None
             recent_7d_queries = recent_by_kb.get(kb_id_int, 0) if kb_id_int is not None else 0
@@ -458,7 +457,15 @@ class DailyReportService:
                 }
             )
 
-        return normalized, total
+        # Sort by recent_7d_queries DESC, then by knowledge_id DESC
+        normalized.sort(
+            key=lambda x: (-x.get("recent_7d_queries", 0), -(x.get("knowledge_id") or 0))
+        )
+
+        # Apply pagination
+        paginated = normalized[offset:offset + limit]
+
+        return paginated, total
 
     async def get_knowledge_base_stats(
         self,
@@ -600,3 +607,89 @@ class DailyReportService:
     async def _fetch_extracted_text(self, raw_id: int) -> Optional[str]:
         """Fetch extracted_text from Raw DB."""
         return await self.raw_tm.fetch_extracted_text(raw_id)
+
+    async def get_global_queries(
+        self,
+        limit: int = 20,
+        offset: int = 0,
+        injection_mode: Optional[str] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Get global query list (not filtered by knowledge base).
+
+        Args:
+            limit: Page size
+            offset: Offset
+            injection_mode: Optional filter by injection mode
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+
+        Returns:
+            (items, total)
+        """
+        conditions = []
+        if injection_mode:
+            conditions.append(RagRecordRef.injection_mode == injection_mode)
+        if start_date:
+            conditions.append(RagRecordRef.record_date >= start_date)
+        if end_date:
+            conditions.append(RagRecordRef.record_date <= end_date)
+
+        # Count total
+        count_stmt = select(func.count(RagRecordRef.id))
+        if conditions:
+            count_stmt = count_stmt.where(and_(*conditions))
+        count_result = await self.db.execute(count_stmt)
+        total = count_result.scalar() or 0
+
+        # Fetch records
+        stmt = select(RagRecordRef).order_by(
+            RagRecordRef.record_date.desc(),
+            RagRecordRef.id.desc()
+        ).offset(offset).limit(limit)
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
+
+        result = await self.db.execute(stmt)
+        refs = result.scalars().all()
+
+        if not refs:
+            return [], total
+
+        # Fetch raw details
+        raw_ids = [ref.raw_id for ref in refs]
+        raw_details = await self.raw_tm.fetch_subtask_context_details(raw_ids)
+
+        # Fetch KB metadata for all unique knowledge_ids
+        kb_ids = list({ref.knowledge_id for ref in refs if ref.knowledge_id is not None})
+        kb_metas = await self.raw_tm.fetch_kb_metas(kb_ids) if kb_ids else {}
+
+        queries: List[Dict[str, Any]] = []
+        for ref in refs:
+            raw_detail = raw_details.get(ref.raw_id, {})
+            rag_result = raw_detail.get("type_data", {}).get("rag_result", {})
+
+            # Get KB metadata
+            kb_meta = kb_metas.get(ref.knowledge_id, {}) if ref.knowledge_id else {}
+
+            queries.append(
+                {
+                    "id": ref.id,
+                    "raw_id": ref.raw_id,
+                    "record_date": ref.record_date.isoformat() if ref.record_date else None,
+                    "context_type": ref.context_type,
+                    "injection_mode": ref.injection_mode,
+                    "evaluation_status": ref.evaluation_status,
+                    "query": rag_result.get("query"),
+                    "chunks_count": rag_result.get("chunks_count"),
+                    "sources": rag_result.get("sources"),
+                    "created_at": raw_detail.get("created_at"),
+                    # KB info
+                    "knowledge_id": ref.knowledge_id,
+                    "knowledge_name": kb_meta.get("knowledge_name"),
+                    "namespace": kb_meta.get("namespace"),
+                }
+            )
+
+        return queries, total

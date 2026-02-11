@@ -50,12 +50,16 @@ function StatCard({
   change,
   icon: Icon,
   color = 'blue',
+  onClick,
+  clickable = false,
 }: {
   title: string
   value: number | string
   change?: number | null
   icon: React.ElementType
   color?: string
+  onClick?: () => void
+  clickable?: boolean
 }) {
   const colorClasses: Record<string, { bg: string; text: string; iconBg: string }> = {
     blue: { bg: 'bg-blue-50', text: 'text-blue-600', iconBg: 'bg-blue-100' },
@@ -63,12 +67,16 @@ function StatCard({
     purple: { bg: 'bg-purple-50', text: 'text-purple-600', iconBg: 'bg-purple-100' },
     orange: { bg: 'bg-orange-50', text: 'text-orange-600', iconBg: 'bg-orange-100' },
     cyan: { bg: 'bg-cyan-50', text: 'text-cyan-600', iconBg: 'bg-cyan-100' },
+    pink: { bg: 'bg-pink-50', text: 'text-pink-600', iconBg: 'bg-pink-100' },
   }
 
   const colors = colorClasses[color] || colorClasses.blue
 
   return (
-    <div className={`rounded-lg border p-4 ${colors.bg}`}>
+    <div
+      className={`rounded-lg border p-4 ${colors.bg} ${clickable ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+      onClick={clickable ? onClick : undefined}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground">{title}</p>
@@ -231,13 +239,15 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6">
             <StatCard
               title={t('dashboard.totalQueries')}
               value={overview.summary.total_queries}
               change={overview.comparison?.total_queries_change}
               icon={Activity}
               color="blue"
+              clickable
+              onClick={() => router.push('/queries')}
             />
             <StatCard
               title={t('dashboard.ragRetrieval')}
@@ -245,24 +255,36 @@ export default function DashboardPage() {
               change={overview.comparison?.rag_retrieval_change}
               icon={FileSearch}
               color="green"
+              clickable
+              onClick={() => router.push('/queries?mode=rag_retrieval')}
             />
             <StatCard
               title={t('dashboard.directInjection')}
               value={overview.summary.direct_injection_count}
               icon={FileText}
               color="purple"
+              clickable
+              onClick={() => router.push('/queries?mode=direct_injection')}
             />
             <StatCard
               title={t('dashboard.selectedDocuments')}
               value={overview.summary.selected_documents_count}
               icon={BookOpen}
               color="orange"
+              clickable
+              onClick={() => router.push('/queries?mode=selected_documents')}
             />
             <StatCard
               title={t('dashboard.activeKnowledgeBases')}
               value={overview.summary.active_kb_count}
-              icon={Users}
+              icon={Database}
               color="cyan"
+            />
+            <StatCard
+              title={t('dashboard.activeUsers')}
+              value={overview.summary.active_user_count}
+              icon={Users}
+              color="pink"
             />
           </div>
 

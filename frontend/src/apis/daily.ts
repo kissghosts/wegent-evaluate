@@ -115,6 +115,12 @@ export interface QueryItem {
   created_at: string | null
 }
 
+export interface GlobalQueryItem extends QueryItem {
+  knowledge_id: number | null
+  knowledge_name: string | null
+  namespace: string | null
+}
+
 export interface RagRecordDetail {
   id: number
   raw_id: number
@@ -228,13 +234,11 @@ export async function getTopKnowledgeBases(params?: {
  */
 export async function getKnowledgeBases(params?: {
   q?: string
-  sort_by?: 'id' | 'name' | 'created_by'
   page?: number
   page_size?: number
 }): Promise<PaginatedResponse<KnowledgeBaseItem>> {
   const searchParams = new URLSearchParams()
   if (params?.q) searchParams.set('q', params.q)
-  if (params?.sort_by) searchParams.set('sort_by', params.sort_by)
   if (params?.page) searchParams.set('page', params.page.toString())
   if (params?.page_size) searchParams.set('page_size', params.page_size.toString())
 
@@ -335,5 +339,30 @@ export async function triggerSync(syncType: 'hourly' | 'daily' | 'full'): Promis
     body: JSON.stringify({ sync_type: syncType }),
   })
   if (!response.ok) throw new Error('Failed to trigger sync')
+  return response.json()
+}
+
+/**
+ * Get global queries (all queries across all knowledge bases)
+ */
+export async function getGlobalQueries(params?: {
+  page?: number
+  page_size?: number
+  injection_mode?: string
+  start_date?: string
+  end_date?: string
+}): Promise<PaginatedResponse<GlobalQueryItem>> {
+  const searchParams = new URLSearchParams()
+  if (params?.page) searchParams.set('page', params.page.toString())
+  if (params?.page_size) searchParams.set('page_size', params.page_size.toString())
+  if (params?.injection_mode) searchParams.set('injection_mode', params.injection_mode)
+  if (params?.start_date) searchParams.set('start_date', params.start_date)
+  if (params?.end_date) searchParams.set('end_date', params.end_date)
+
+  const url = apiUrl(
+    `/daily/queries${searchParams.toString() ? `?${searchParams}` : ''}`
+  )
+  const response = await fetch(url)
+  if (!response.ok) throw new Error('Failed to fetch global queries')
   return response.json()
 }

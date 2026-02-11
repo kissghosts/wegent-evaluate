@@ -116,7 +116,6 @@ class RawTaskManagerService:
         limit: int = 20,
         offset: int = 0,
         q: Optional[str] = None,
-        sort_by: str = "id",
     ) -> tuple[List[Dict[str, Any]], int]:
         """List KnowledgeBase items from task_manager.kinds with optional search.
 
@@ -124,10 +123,8 @@ class RawTaskManagerService:
         - If q is digits: match kb id OR creator user_id
         - Else: fuzzy match on kinds.name / kinds.namespace / kinds.json / users.user_name (string contains)
 
-        sort_by:
-        - 'id' (default): id desc
-        - 'name': name asc
-        - 'created_by': user_id desc
+        Note: Sorting by recent usage is handled by the caller (DailyReportService)
+        since it requires joining data from the local database.
         """
         if not is_raw_db_configured():
             return [], 0
@@ -140,7 +137,7 @@ class RawTaskManagerService:
 
         # Build WHERE
         where_sql = "WHERE k.kind = 'KnowledgeBase'"
-        params: Dict[str, Any] = {"limit": int(limit), "offset": int(offset)}
+        params: Dict[str, Any] = {}
 
         if q:
             if q.isdigit():
@@ -153,14 +150,6 @@ class RawTaskManagerService:
                     " AND (k.name LIKE :q_like OR k.namespace LIKE :q_like OR k.json LIKE :q_like OR u.user_name LIKE :q_like)"
                 )
                 params["q_like"] = like
-
-        # ORDER BY
-        if sort_by == "name":
-            order_sql = "ORDER BY k.name ASC, k.id DESC"
-        elif sort_by == "created_by":
-            order_sql = "ORDER BY k.user_id DESC, k.id DESC"
-        else:
-            order_sql = "ORDER BY k.id DESC"
 
         async with session_factory() as raw_session:
             count_query = text(
@@ -175,6 +164,7 @@ class RawTaskManagerService:
             row = count_res.fetchone()
             total = int(row.total) if row and getattr(row, "total", None) is not None else 0
 
+            # Fetch all matching KBs (for sorting by usage, we need to fetch all first)
             data_query = text(
                 f"""
                 SELECT k.id,
@@ -188,8 +178,7 @@ class RawTaskManagerService:
                 FROM kinds k
                 LEFT JOIN users u ON u.id = k.user_id
                 {where_sql}
-                {order_sql}
-                LIMIT :limit OFFSET :offset
+                ORDER BY k.id DESC
                 """
             )
             res = await raw_session.execute(data_query, params)

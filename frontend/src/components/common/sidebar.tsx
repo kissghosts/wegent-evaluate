@@ -16,12 +16,14 @@ import {
   ChevronDown,
   ChevronRight,
   FlaskConical,
+  ListFilter,
 } from 'lucide-react'
 
 // Main nav items
 const mainNavItems = [
   { href: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { href: '/knowledge-bases', labelKey: 'nav.knowledgeBases', icon: Database, matchPrefix: true },
+  { href: '/queries', labelKey: 'nav.queries', icon: ListFilter, matchPrefix: true },
 ]
 
 // Evaluation center sub-items
