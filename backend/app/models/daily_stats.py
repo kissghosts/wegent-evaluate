@@ -156,6 +156,7 @@ class RagRecordRef(Base):
         ForeignKey("evaluation_results.id", ondelete="SET NULL"),
         nullable=True,
     )
+    evaluated_at = Column(DateTime, nullable=True, index=True)
 
     # Date for quick filtering
     record_date = Column(Date, nullable=True, index=True)
@@ -169,6 +170,7 @@ class RagRecordRef(Base):
     __table_args__ = (
         Index("ix_rag_record_refs_date_kb", "record_date", "knowledge_id"),
         Index("ix_rag_record_refs_eval_status", "evaluation_status"),
+        Index("ix_rag_record_refs_date_mode", "record_date", "injection_mode"),
     )
 
     def __repr__(self) -> str:

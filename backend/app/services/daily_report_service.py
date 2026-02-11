@@ -552,10 +552,25 @@ class DailyReportService:
         raw_ids = [ref.raw_id for ref in refs]
         raw_details = await self.raw_tm.fetch_subtask_context_details(raw_ids)
 
+        # Fetch evaluation results for refs that have them
+        eval_result_ids = [ref.evaluation_result_id for ref in refs if ref.evaluation_result_id]
+        eval_results_map = {}
+        if eval_result_ids:
+            from app.models import EvaluationResult
+            eval_query = await self.db.execute(
+                select(EvaluationResult).where(EvaluationResult.id.in_(eval_result_ids))
+            )
+            for er in eval_query.scalars().all():
+                eval_results_map[er.id] = er
+
         queries: List[Dict[str, Any]] = []
         for ref in refs:
             raw_detail = raw_details.get(ref.raw_id, {})
             rag_result = raw_detail.get("type_data", {}).get("rag_result", {})
+            eval_result = eval_results_map.get(ref.evaluation_result_id) if ref.evaluation_result_id else None
+
+            # Determine if this record is evaluable (only rag_retrieval is evaluable)
+            is_evaluable = ref.injection_mode == InjectionMode.RAG_RETRIEVAL.value
 
             queries.append(
                 {
@@ -569,6 +584,11 @@ class DailyReportService:
                     "chunks_count": rag_result.get("chunks_count"),
                     "sources": rag_result.get("sources"),
                     "created_at": raw_detail.get("created_at"),
+                    # Evaluation fields
+                    "is_evaluable": is_evaluable,
+                    "evaluation_judgment": eval_result.evaluation_judgment if eval_result else None,
+                    "total_score": eval_result.total_score if eval_result else None,
+                    "evaluated_at": ref.evaluated_at.isoformat() if ref.evaluated_at else None,
                 }
             )
 
@@ -615,6 +635,8 @@ class DailyReportService:
         injection_mode: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        evaluation_status: Optional[str] = None,
+        evaluation_judgment: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """Get global query list (not filtered by knowledge base).
 
@@ -624,6 +646,8 @@ class DailyReportService:
             injection_mode: Optional filter by injection mode
             start_date: Optional start date filter
             end_date: Optional end date filter
+            evaluation_status: Optional filter by evaluation status
+            evaluation_judgment: Optional filter by evaluation judgment (pass/fail/undetermined)
 
         Returns:
             (items, total)
@@ -635,11 +659,27 @@ class DailyReportService:
             conditions.append(RagRecordRef.record_date >= start_date)
         if end_date:
             conditions.append(RagRecordRef.record_date <= end_date)
+        if evaluation_status:
+            conditions.append(RagRecordRef.evaluation_status == evaluation_status)
+
+        # For evaluation_judgment filter, we need to join with EvaluationResult
+        join_eval = evaluation_judgment is not None
 
         # Count total
-        count_stmt = select(func.count(RagRecordRef.id))
-        if conditions:
-            count_stmt = count_stmt.where(and_(*conditions))
+        if join_eval:
+            from app.models import EvaluationResult
+            count_stmt = (
+                select(func.count(RagRecordRef.id))
+                .join(EvaluationResult, RagRecordRef.evaluation_result_id == EvaluationResult.id)
+                .where(EvaluationResult.evaluation_judgment == evaluation_judgment)
+            )
+            if conditions:
+                count_stmt = count_stmt.where(and_(*conditions))
+        else:
+            count_stmt = select(func.count(RagRecordRef.id))
+            if conditions:
+                count_stmt = count_stmt.where(and_(*conditions))
+
         count_result = await self.db.execute(count_stmt)
         total = count_result.scalar() or 0
 
@@ -650,6 +690,19 @@ class DailyReportService:
         ).offset(offset).limit(limit)
         if conditions:
             stmt = stmt.where(and_(*conditions))
+
+        if join_eval:
+            from app.models import EvaluationResult
+            stmt = (
+                select(RagRecordRef)
+                .join(EvaluationResult, RagRecordRef.evaluation_result_id == EvaluationResult.id)
+                .where(EvaluationResult.evaluation_judgment == evaluation_judgment)
+                .order_by(RagRecordRef.record_date.desc(), RagRecordRef.id.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+            if conditions:
+                stmt = stmt.where(and_(*conditions))
 
         result = await self.db.execute(stmt)
         refs = result.scalars().all()
@@ -665,6 +718,17 @@ class DailyReportService:
         kb_ids = list({ref.knowledge_id for ref in refs if ref.knowledge_id is not None})
         kb_metas = await self.raw_tm.fetch_kb_metas(kb_ids) if kb_ids else {}
 
+        # Fetch evaluation results for refs that have them
+        eval_result_ids = [ref.evaluation_result_id for ref in refs if ref.evaluation_result_id]
+        eval_results_map = {}
+        if eval_result_ids:
+            from app.models import EvaluationResult
+            eval_query = await self.db.execute(
+                select(EvaluationResult).where(EvaluationResult.id.in_(eval_result_ids))
+            )
+            for er in eval_query.scalars().all():
+                eval_results_map[er.id] = er
+
         queries: List[Dict[str, Any]] = []
         for ref in refs:
             raw_detail = raw_details.get(ref.raw_id, {})
@@ -672,6 +736,12 @@ class DailyReportService:
 
             # Get KB metadata
             kb_meta = kb_metas.get(ref.knowledge_id, {}) if ref.knowledge_id else {}
+
+            # Get evaluation result
+            eval_result = eval_results_map.get(ref.evaluation_result_id) if ref.evaluation_result_id else None
+
+            # Determine if this record is evaluable (only rag_retrieval is evaluable)
+            is_evaluable = ref.injection_mode == InjectionMode.RAG_RETRIEVAL.value
 
             queries.append(
                 {
@@ -689,6 +759,11 @@ class DailyReportService:
                     "knowledge_id": ref.knowledge_id,
                     "knowledge_name": kb_meta.get("knowledge_name"),
                     "namespace": kb_meta.get("namespace"),
+                    # Evaluation fields
+                    "is_evaluable": is_evaluable,
+                    "evaluation_judgment": eval_result.evaluation_judgment if eval_result else None,
+                    "total_score": eval_result.total_score if eval_result else None,
+                    "evaluated_at": ref.evaluated_at.isoformat() if ref.evaluated_at else None,
                 }
             )
 

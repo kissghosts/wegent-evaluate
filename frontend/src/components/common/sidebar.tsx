@@ -17,6 +17,7 @@ import {
   ChevronRight,
   FlaskConical,
   ListFilter,
+  BarChart3,
 } from 'lucide-react'
 
 // Main nav items
@@ -24,9 +25,10 @@ const mainNavItems = [
   { href: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { href: '/knowledge-bases', labelKey: 'nav.knowledgeBases', icon: Database, matchPrefix: true },
   { href: '/queries', labelKey: 'nav.queries', icon: ListFilter, matchPrefix: true },
+  { href: '/evaluation', labelKey: 'nav.evaluationOverview', icon: BarChart3 },
 ]
 
-// Evaluation center sub-items
+// Evaluation center sub-items (legacy, kept for backward compatibility)
 const evaluationItems = [
   { href: '/results', labelKey: 'nav.results', icon: FileSearch },
   { href: '/trends', labelKey: 'nav.trends', icon: TrendingUp },

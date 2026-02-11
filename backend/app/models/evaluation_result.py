@@ -37,18 +37,28 @@ class EvaluationResult(Base):
     __tablename__ = "evaluation_results"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+
+    # Legacy: Link to ConversationRecord (kept for backward compatibility)
     conversation_record_id = Column(
         BigInteger,
         ForeignKey("conversation_records.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,  # Made nullable for new RagRecordRef-based evaluations
         unique=True,
     )
 
-    # Version ID for data versioning
+    # New: Link to RagRecordRef for direct raw DB evaluation
+    rag_record_ref_id = Column(
+        BigInteger,
+        ForeignKey("rag_record_refs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # Version ID for data versioning (optional for RagRecordRef-based evaluations)
     version_id = Column(
         BigInteger,
         ForeignKey("data_versions.id"),
-        nullable=False,
+        nullable=True,  # Made nullable for RagRecordRef-based evaluations
         index=True,
     )
 

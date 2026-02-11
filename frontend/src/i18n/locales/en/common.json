@@ -34,7 +34,8 @@
     "issues": "Issues",
     "metricsDocs": "Metrics Docs",
     "settings": "Settings",
-    "evaluationCenter": "Evaluation Center"
+    "evaluationCenter": "Evaluation Center",
+    "evaluationOverview": "Evaluation"
   },
   "dashboard": {
     "title": "RAG Daily Report",
@@ -340,5 +341,41 @@
     "completed": "Completed",
     "failed": "Failed",
     "skipped": "Skipped"
+  },
+  "evaluation": {
+    "title": "Evaluation Overview",
+    "ragOverview": "RAG Evaluation Overview",
+    "nonRagStats": "Non-RAG Usage",
+    "effectChange": "Effect Change",
+    "evaluated": "Evaluated",
+    "coverage": "Coverage",
+    "passRate": "Pass Rate",
+    "directInjection": "Direct Injection",
+    "selectedDocs": "Selected Documents",
+    "nonRagRatio": "Non-RAG Ratio",
+    "dayOverDay": "Day over Day",
+    "weekOverWeek": "Week over Week",
+    "scoreChange": "Score Change",
+    "trendChart": "Evaluation Trend",
+    "periodComparison": "Period Comparison",
+    "metric": "Metric",
+    "change": "Change",
+    "evaluatedCount": "Evaluated Count",
+    "avgScore": "Avg Score",
+    "lowScoreRanking": "Low Score Ranking",
+    "byQuery": "By Query",
+    "byKB": "By Knowledge Base",
+    "query": "Query",
+    "knowledgeBase": "Knowledge Base",
+    "totalScore": "Score",
+    "judgment": "Judgment",
+    "triggerEvaluation": "Trigger Evaluation",
+    "evaluating": "Evaluating...",
+    "triggerDescription": "This will evaluate all RAG retrieval records in the selected date range.",
+    "startEvaluation": "Start Evaluation",
+    "notEvaluable": "Not Evaluable",
+    "pass": "Pass",
+    "fail": "Fail",
+    "undetermined": "Undetermined"
   }
 }
