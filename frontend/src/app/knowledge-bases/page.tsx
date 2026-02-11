@@ -19,7 +19,6 @@ export default function KnowledgeBasesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [sortBy, setSortBy] = useState<'id' | 'name' | 'created_by'>('id')
   const [keyword, setKeyword] = useState('')
   const debouncedKeyword = useDebouncedValue(keyword, 500)
   const pageSize = 20
@@ -31,7 +30,6 @@ export default function KnowledgeBasesPage() {
       const result = await getKnowledgeBases({
         page,
         page_size: pageSize,
-        sort_by: sortBy,
         q: debouncedKeyword.trim() || undefined,
       })
       setData(result)
@@ -40,7 +38,7 @@ export default function KnowledgeBasesPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, sortBy, debouncedKeyword])
+  }, [page, debouncedKeyword])
 
   useEffect(() => {
     fetchData()
@@ -77,20 +75,6 @@ export default function KnowledgeBasesPage() {
               className="w-72 rounded-md border bg-background pl-9 pr-3 py-1.5 text-sm"
             />
           </div>
-
-          <span className="text-sm text-muted-foreground">Sort by:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => {
-              setPage(1)
-              setSortBy(e.target.value as 'id' | 'name' | 'created_by')
-            }}
-            className="rounded-md border px-3 py-1.5 text-sm"
-          >
-            <option value="id">ID</option>
-            <option value="name">{t('dashboard.knowledgeBaseName')}</option>
-            <option value="created_by">{t('knowledgeBase.creator', 'Creator')}</option>
-          </select>
         </div>
       </div>
 
