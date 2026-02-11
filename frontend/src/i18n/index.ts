@@ -15,25 +15,15 @@ const resources = {
   },
 }
 
-// Get initial language from localStorage or browser
-const getInitialLanguage = () => {
-  if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('language')
-    if (saved && (saved === 'en' || saved === 'zh-CN')) {
-      return saved
-    }
-    // Check browser language
-    const browserLang = navigator.language
-    if (browserLang.startsWith('zh')) {
-      return 'zh-CN'
-    }
-  }
-  return 'en'
-}
-
+/**
+ * Important: keep the initial language deterministic between SSR and hydration.
+ *
+ * LanguageProvider (client-side) will switch language after mount based on
+ * localStorage / browser language.
+ */
 i18n.use(initReactI18next).init({
   resources,
-  lng: getInitialLanguage(),
+  lng: 'en',
   fallbackLng: 'en',
   defaultNS: 'common',
   interpolation: {

@@ -23,13 +23,13 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     # Database configuration
-    DATABASE_URL: str = "mysql+asyncmy://user:password@localhost:13306/wegent_evaluate"
+    DATABASE_URL: str = "mysql+asyncmy://user:password@localhost:3306/wegent_evaluate"
 
     # Raw DB configuration (read-only access to task_manager database)
     RAW_DATABASE_URL: Optional[str] = None  # e.g., "mysql+asyncmy://user:pass@host:port/task_manager"
 
     # External API configuration
-    EXTERNAL_API_BASE_URL: str = "http://localhost:18000"
+    EXTERNAL_API_BASE_URL: str = "http://localhost:8000"
     EXTERNAL_API_QA_HISTORY_PATH: str = "/api/v1/knowledge-base/qa-history"
 
     # External API authentication configuration
@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     EVALUATION_CORE_THRESHOLD: float = 0.6
 
     # Frontend URL for CORS
-    FRONTEND_URL: str = "http://localhost:13000"
+    FRONTEND_URL: str = "http://localhost:3000"
 
     # Excluded User IDs for filtering (comma-separated list)
     EXCLUDED_USER_IDS: str = ""

@@ -4,7 +4,12 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { triggerSync, getSyncStatus } from '@/apis/sync'
 import { triggerEvaluation, getEvaluationStatus } from '@/apis/evaluation'
-import { getSettingsConfig, setExternalApiBaseUrl, setExternalApiCredentials, SettingsConfig } from '@/apis/settings'
+import {
+  getSettingsConfig,
+  setExternalApiBaseUrl as setExternalApiBaseUrlApi,
+  setExternalApiCredentials,
+  SettingsConfig,
+} from '@/apis/settings'
 import { generateWeeklyReport } from '@/apis/report'
 import { useVersion } from '@/contexts/VersionContext'
 import { Loader2, FileText, AlertTriangle, Copy, Check, Save } from 'lucide-react'
@@ -291,7 +296,7 @@ export default function SettingsPage() {
     setApiUrlMessage(null)
 
     try {
-      const result = await setExternalApiBaseUrl(externalApiBaseUrl)
+      const result = await setExternalApiBaseUrlApi(externalApiBaseUrl)
       if (result.success) {
         setApiUrlMessage({
           type: 'success',

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { useTranslation } from 'react-i18next'
 import { useRouter } from 'next/navigation'
 import { Database, Loader2, Search } from 'lucide-react'
@@ -10,12 +11,6 @@ import {
   PaginatedResponse,
 } from '@/apis/daily'
 
-// Format mode name
-function formatModeName(mode: string, t: (key: string) => string): string {
-  const modeKey = `ragMode.${mode}`
-  return t(modeKey) || mode
-}
-
 export default function KnowledgeBasesPage() {
   const { t } = useTranslation()
   const router = useRouter()
@@ -24,7 +19,9 @@ export default function KnowledgeBasesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [sortBy, setSortBy] = useState<'queries' | 'name'>('queries')
+  const [sortBy, setSortBy] = useState<'id' | 'name' | 'created_by'>('id')
+  const [keyword, setKeyword] = useState('')
+  const debouncedKeyword = useDebouncedValue(keyword, 500)
   const pageSize = 20
 
   const fetchData = useCallback(async () => {
@@ -35,6 +32,7 @@ export default function KnowledgeBasesPage() {
         page,
         page_size: pageSize,
         sort_by: sortBy,
+        q: debouncedKeyword.trim() || undefined,
       })
       setData(result)
     } catch (err) {
@@ -42,21 +40,12 @@ export default function KnowledgeBasesPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, sortBy])
+  }, [page, sortBy, debouncedKeyword])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
-  // Determine primary mode for a KB
-  const getPrimaryMode = (kb: KnowledgeBaseItem): string => {
-    const modes = {
-      rag_retrieval: kb.rag_retrieval_count,
-      direct_injection: kb.direct_injection_count,
-      selected_documents: kb.selected_documents_count,
-    }
-    return Object.entries(modes).reduce((a, b) => (b[1] > modes[a as keyof typeof modes] ? b[0] : a), 'rag_retrieval')
-  }
 
   if (loading && !data) {
     return (
@@ -75,15 +64,32 @@ export default function KnowledgeBasesPage() {
           <Database className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-semibold">{t('knowledgeBase.title')}</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={keyword}
+              onChange={(e) => {
+                setPage(1)
+                setKeyword(e.target.value)
+              }}
+              placeholder={t('knowledgeBase.search_placeholder', 'Search by id / name / creator')}
+              className="w-72 rounded-md border bg-background pl-9 pr-3 py-1.5 text-sm"
+            />
+          </div>
+
           <span className="text-sm text-muted-foreground">Sort by:</span>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'queries' | 'name')}
+            onChange={(e) => {
+              setPage(1)
+              setSortBy(e.target.value as 'id' | 'name' | 'created_by')
+            }}
             className="rounded-md border px-3 py-1.5 text-sm"
           >
-            <option value="queries">{t('dashboard.queries')}</option>
+            <option value="id">ID</option>
             <option value="name">{t('dashboard.knowledgeBaseName')}</option>
+            <option value="created_by">{t('knowledgeBase.creator', 'Creator')}</option>
           </select>
         </div>
       </div>
@@ -102,16 +108,18 @@ export default function KnowledgeBasesPage() {
                 <tr className="text-left text-sm text-muted-foreground">
                   <th className="px-4 py-3">{t('dashboard.knowledgeBaseName')}</th>
                   <th className="px-4 py-3">{t('dashboard.namespace')}</th>
-                  <th className="px-4 py-3 text-right">{t('dashboard.totalQueries')}</th>
-                  <th className="px-4 py-3 text-right">{t('dashboard.ragRetrieval')}</th>
-                  <th className="px-4 py-3 text-right">{t('dashboard.directInjection')}</th>
-                  <th className="px-4 py-3 text-right">{t('dashboard.selectedDocuments')}</th>
-                  <th className="px-4 py-3">{t('dashboard.primaryMode')}</th>
+                  <th className="px-4 py-3">{t('knowledgeBase.creator', 'Creator')}</th>
+                  <th className="px-4 py-3">{t('knowledgeBase.description', 'Description')}</th>
+                  <th className="px-4 py-3">{t('knowledgeBase.type', 'Type')}</th>
+                  <th className="px-4 py-3">{t('knowledgeBase.createdAt', 'Created')}</th>
+                  <th className="px-4 py-3">{t('knowledgeBase.recent7d', 'Recent 7d')}</th>
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((kb) => {
-                  const primaryMode = getPrimaryMode(kb)
+                  const recent7d = kb.recent_7d_queries ?? 0
+                  const isUsed = kb.recent_7d_used ?? recent7d > 0
+
                   return (
                     <tr
                       key={kb.knowledge_id}
@@ -119,35 +127,39 @@ export default function KnowledgeBasesPage() {
                       onClick={() => router.push(`/knowledge-bases/${kb.knowledge_id}`)}
                     >
                       <td className="px-4 py-3 font-medium">
-                        {kb.knowledge_name || `KB-${kb.knowledge_id}`}
+                        <span>{kb.knowledge_name || `KB-${kb.knowledge_id}`}</span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {kb.namespace || 'default'}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium">
-                        {kb.total_queries}
-                      </td>
-                      <td className="px-4 py-3 text-right text-green-600">
-                        {kb.rag_retrieval_count}
-                      </td>
-                      <td className="px-4 py-3 text-right text-purple-600">
-                        {kb.direct_injection_count}
-                      </td>
-                      <td className="px-4 py-3 text-right text-orange-600">
-                        {kb.selected_documents_count}
+                      <td className="px-4 py-3">
+                        {kb.created_by_user_name ? (
+                          <span className="text-sm text-muted-foreground">@{kb.created_by_user_name}</span>
+                        ) : kb.created_by_user_id ? (
+                          <span className="text-sm text-muted-foreground">UID-{kb.created_by_user_id}</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                            primaryMode === 'rag_retrieval'
-                              ? 'bg-green-100 text-green-700'
-                              : primaryMode === 'direct_injection'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-orange-100 text-orange-700'
-                          }`}
-                        >
-                          {formatModeName(primaryMode, t)}
-                        </span>
+                        <span className="text-sm text-muted-foreground line-clamp-2">{kb.description || '-'}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-muted-foreground">{kb.kb_type || '-'}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-muted-foreground">{kb.created_at || '-'}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {isUsed ? (
+                          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                            {t('common.yes', 'Yes')} ({recent7d})
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+                            {t('common.no', 'No')}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   )

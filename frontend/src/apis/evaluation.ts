@@ -2,13 +2,13 @@
  * API client for evaluation endpoints
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:18000'
+import { apiUrl } from './base'
 
 export async function triggerEvaluation(
   mode: 'range' | 'ids',
   options: { start_id?: number; end_id?: number; record_ids?: number[]; force?: boolean }
 ) {
-  const response = await fetch(`${API_BASE_URL}/api/evaluation/trigger`, {
+  const response = await fetch(apiUrl('/evaluation/trigger'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mode, ...options }),
@@ -18,7 +18,7 @@ export async function triggerEvaluation(
 }
 
 export async function getEvaluationStatus(jobId: string) {
-  const response = await fetch(`${API_BASE_URL}/api/evaluation/status/${jobId}`)
+  const response = await fetch(apiUrl(`/evaluation/status/${jobId}`))
   if (!response.ok) throw new Error('Failed to get evaluation status')
   return response.json()
 }
@@ -47,17 +47,13 @@ export async function getEvaluationResults(params: {
     }
   })
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/evaluation/results?${searchParams.toString()}`
-  )
+  const response = await fetch(apiUrl(`/evaluation/results?${searchParams.toString()}`))
   if (!response.ok) throw new Error('Failed to get evaluation results')
   return response.json()
 }
 
 export async function getEvaluationResultDetail(resultId: number) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/evaluation/results/${resultId}`
-  )
+  const response = await fetch(apiUrl(`/evaluation/results/${resultId}`))
   if (!response.ok) throw new Error('Failed to get evaluation result detail')
   return response.json()
 }
@@ -74,9 +70,7 @@ export async function getEvaluationSummary(params: {
     }
   })
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/evaluation/summary?${searchParams.toString()}`
-  )
+  const response = await fetch(apiUrl(`/evaluation/summary?${searchParams.toString()}`))
   if (!response.ok) throw new Error('Failed to get evaluation summary')
   return response.json()
 }
@@ -93,9 +87,7 @@ export async function getEvaluationAlerts(params: {
     }
   })
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/evaluation/alerts?${searchParams.toString()}`
-  )
+  const response = await fetch(apiUrl(`/evaluation/alerts?${searchParams.toString()}`))
   if (!response.ok) throw new Error('Failed to get evaluation alerts')
   return response.json()
 }
@@ -113,17 +105,13 @@ export async function getMetricsDocumentation(params?: {
     })
   }
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/evaluation/metrics-docs?${searchParams.toString()}`
-  )
+  const response = await fetch(apiUrl(`/evaluation/metrics-docs?${searchParams.toString()}`))
   if (!response.ok) throw new Error('Failed to get metrics documentation')
   return response.json()
 }
 
 export async function getMetricDocumentationById(metricId: string) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/evaluation/metrics-docs/${metricId}`
-  )
+  const response = await fetch(apiUrl(`/evaluation/metrics-docs/${metricId}`))
   if (!response.ok) throw new Error('Failed to get metric documentation')
   return response.json()
 }

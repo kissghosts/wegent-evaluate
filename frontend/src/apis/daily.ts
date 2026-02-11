@@ -2,7 +2,7 @@
  * Daily report API client
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api'
+import { apiUrl } from './base'
 
 export interface DailySummary {
   total_queries: number
@@ -53,6 +53,15 @@ export interface KnowledgeBaseItem {
   knowledge_id: number
   knowledge_name: string | null
   namespace: string | null
+  created_by_user_id?: number | null
+  created_by_user_name?: string | null
+  description?: string | null
+  kb_type?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  recent_7d_queries?: number
+  recent_7d_used?: boolean
+  // 注意：全局列表页当前不展示统计列，这些字段在列表接口中可能为 0
   total_queries: number
   rag_retrieval_count: number
   direct_injection_count: number
@@ -67,6 +76,8 @@ export interface KnowledgeBaseDetail {
   namespace: string | null
   kb_type: string | null
   is_active: boolean | null
+  created_by_user_id?: number | null
+  created_by_user_name?: string | null
   retrieval_config: {
     retriever_name: string | null
     retrieval_mode: string | null
@@ -153,7 +164,7 @@ export async function getDailyOverview(params?: {
   if (params?.start_date) searchParams.set('start_date', params.start_date)
   if (params?.end_date) searchParams.set('end_date', params.end_date)
 
-  const url = `${API_BASE}/daily/overview${searchParams.toString() ? `?${searchParams}` : ''}`
+  const url = apiUrl(`/daily/overview${searchParams.toString() ? `?${searchParams}` : ''}`)
   const response = await fetch(url)
   if (!response.ok) throw new Error('Failed to fetch daily overview')
   return response.json()
@@ -170,7 +181,7 @@ export async function getDailyTrends(params?: {
   if (params?.days) searchParams.set('days', params.days.toString())
   if (params?.granularity) searchParams.set('granularity', params.granularity)
 
-  const url = `${API_BASE}/daily/trends${searchParams.toString() ? `?${searchParams}` : ''}`
+  const url = apiUrl(`/daily/trends${searchParams.toString() ? `?${searchParams}` : ''}`)
   const response = await fetch(url)
   if (!response.ok) throw new Error('Failed to fetch trends')
   return response.json()
@@ -183,7 +194,7 @@ export async function getHourlyStats(date: string): Promise<{
   date: string
   hourly: HourlyDataPoint[]
 }> {
-  const url = `${API_BASE}/daily/${date}/hourly`
+  const url = apiUrl(`/daily/${date}/hourly`)
   const response = await fetch(url)
   if (!response.ok) throw new Error('Failed to fetch hourly stats')
   return response.json()
@@ -194,13 +205,19 @@ export async function getHourlyStats(date: string): Promise<{
  */
 export async function getTopKnowledgeBases(params?: {
   target_date?: string
+  start_date?: string
+  end_date?: string
   limit?: number
 }): Promise<{ date: string; items: KnowledgeBaseItem[] }> {
   const searchParams = new URLSearchParams()
   if (params?.target_date) searchParams.set('target_date', params.target_date)
+  if (params?.start_date) searchParams.set('start_date', params.start_date)
+  if (params?.end_date) searchParams.set('end_date', params.end_date)
   if (params?.limit) searchParams.set('limit', params.limit.toString())
 
-  const url = `${API_BASE}/daily/knowledge-bases/top${searchParams.toString() ? `?${searchParams}` : ''}`
+  const url = apiUrl(
+    `/daily/knowledge-bases/top${searchParams.toString() ? `?${searchParams}` : ''}`
+  )
   const response = await fetch(url)
   if (!response.ok) throw new Error('Failed to fetch top knowledge bases')
   return response.json()
@@ -210,18 +227,20 @@ export async function getTopKnowledgeBases(params?: {
  * Get knowledge base list
  */
 export async function getKnowledgeBases(params?: {
-  target_date?: string
-  sort_by?: 'queries' | 'name'
+  q?: string
+  sort_by?: 'id' | 'name' | 'created_by'
   page?: number
   page_size?: number
 }): Promise<PaginatedResponse<KnowledgeBaseItem>> {
   const searchParams = new URLSearchParams()
-  if (params?.target_date) searchParams.set('target_date', params.target_date)
+  if (params?.q) searchParams.set('q', params.q)
   if (params?.sort_by) searchParams.set('sort_by', params.sort_by)
   if (params?.page) searchParams.set('page', params.page.toString())
   if (params?.page_size) searchParams.set('page_size', params.page_size.toString())
 
-  const url = `${API_BASE}/daily/knowledge-bases${searchParams.toString() ? `?${searchParams}` : ''}`
+  const url = apiUrl(
+    `/daily/knowledge-bases${searchParams.toString() ? `?${searchParams}` : ''}`
+  )
   const response = await fetch(url)
   if (!response.ok) throw new Error('Failed to fetch knowledge bases')
   return response.json()
@@ -231,7 +250,7 @@ export async function getKnowledgeBases(params?: {
  * Get knowledge base detail
  */
 export async function getKnowledgeBaseDetail(kbId: number): Promise<KnowledgeBaseDetail> {
-  const url = `${API_BASE}/daily/knowledge-bases/${kbId}`
+  const url = apiUrl(`/daily/knowledge-bases/${kbId}`)
   const response = await fetch(url)
   if (!response.ok) throw new Error('Failed to fetch knowledge base detail')
   return response.json()
@@ -247,7 +266,9 @@ export async function getKnowledgeBaseStats(
   const searchParams = new URLSearchParams()
   if (params?.days) searchParams.set('days', params.days.toString())
 
-  const url = `${API_BASE}/daily/knowledge-bases/${kbId}/stats${searchParams.toString() ? `?${searchParams}` : ''}`
+  const url = apiUrl(
+    `/daily/knowledge-bases/${kbId}/stats${searchParams.toString() ? `?${searchParams}` : ''}`
+  )
   const response = await fetch(url)
   if (!response.ok) throw new Error('Failed to fetch knowledge base stats')
   return response.json()
@@ -271,7 +292,9 @@ export async function getKnowledgeBaseQueries(
   if (params?.injection_mode) searchParams.set('injection_mode', params.injection_mode)
   if (params?.evaluation_status) searchParams.set('evaluation_status', params.evaluation_status)
 
-  const url = `${API_BASE}/daily/knowledge-bases/${kbId}/queries${searchParams.toString() ? `?${searchParams}` : ''}`
+  const url = apiUrl(
+    `/daily/knowledge-bases/${kbId}/queries${searchParams.toString() ? `?${searchParams}` : ''}`
+  )
   const response = await fetch(url)
   if (!response.ok) throw new Error('Failed to fetch queries')
   return response.json()
@@ -281,7 +304,7 @@ export async function getKnowledgeBaseQueries(
  * Get RAG record detail
  */
 export async function getRagRecordDetail(recordId: number): Promise<RagRecordDetail> {
-  const url = `${API_BASE}/daily/rag-records/${recordId}`
+  const url = apiUrl(`/daily/rag-records/${recordId}`)
   const response = await fetch(url)
   if (!response.ok) throw new Error('Failed to fetch RAG record detail')
   return response.json()
@@ -291,7 +314,7 @@ export async function getRagRecordDetail(recordId: number): Promise<RagRecordDet
  * Get sync status
  */
 export async function getSyncStatus(): Promise<SyncStatus> {
-  const url = `${API_BASE}/daily/sync/status`
+  const url = apiUrl('/daily/sync/status')
   const response = await fetch(url)
   if (!response.ok) throw new Error('Failed to fetch sync status')
   return response.json()
@@ -305,7 +328,7 @@ export async function triggerSync(syncType: 'hourly' | 'daily' | 'full'): Promis
   message: string
   result: Record<string, unknown> | null
 }> {
-  const url = `${API_BASE}/daily/sync/trigger`
+  const url = apiUrl('/daily/sync/trigger')
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

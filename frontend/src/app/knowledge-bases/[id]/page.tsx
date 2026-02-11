@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { QuickDaysSelector } from '@/components/common/date-range-selector'
 import { useTranslation } from 'react-i18next'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -141,6 +142,11 @@ export default function KnowledgeBaseDetailPage() {
         </button>
         <div>
           <h1 className="text-2xl font-semibold">{detail.name || `KB-${detail.id}`}</h1>
+          {(detail.created_by_user_name || detail.created_by_user_id) && (
+            <p className="text-sm text-muted-foreground">
+              {t('knowledgeBase.creator', 'Creator')}: {detail.created_by_user_name || `UID-${detail.created_by_user_id}`}
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">
             {detail.namespace || 'default'} · {detail.kb_type || 'classic'}
           </p>
@@ -209,24 +215,14 @@ export default function KnowledgeBaseDetailPage() {
               <TrendingUp className="h-5 w-5 text-primary" />
               <h2 className="font-semibold">{t('knowledgeBase.usageTrend')}</h2>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setTrendDays(7)}
-                className={`px-3 py-1 text-sm rounded ${
-                  trendDays === 7 ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                }`}
-              >
-                {t('dashboard.last7Days')}
-              </button>
-              <button
-                onClick={() => setTrendDays(30)}
-                className={`px-3 py-1 text-sm rounded ${
-                  trendDays === 30 ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                }`}
-              >
-                {t('dashboard.last30Days')}
-              </button>
-            </div>
+            <QuickDaysSelector
+              value={trendDays}
+              options={[
+                { days: 7, label: t('dashboard.last7Days') },
+                { days: 30, label: t('dashboard.last30Days') },
+              ]}
+              onChange={setTrendDays}
+            />
           </div>
 
           {stats.daily.length > 0 ? (

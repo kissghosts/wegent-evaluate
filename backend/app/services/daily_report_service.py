@@ -8,7 +8,7 @@ import structlog
 from sqlalchemy import func, select, text, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.raw_database import get_raw_session_factory, is_raw_db_configured
+from app.core.raw_database import is_raw_db_configured
 from app.models import (
     DailyStats,
     HourlyStats,
@@ -16,6 +16,7 @@ from app.models import (
     KbDailyStats,
     RagRecordRef,
 )
+from app.services.raw_task_manager_service import RawTaskManagerService
 
 logger = structlog.get_logger(__name__)
 
@@ -30,6 +31,7 @@ class DailyReportService:
             db: Local database session
         """
         self.db = db
+        self.raw_tm = RawTaskManagerService(db)
 
     async def get_daily_overview(
         self,
@@ -217,17 +219,69 @@ class DailyReportService:
     async def get_top_knowledge_bases(
         self,
         target_date: Optional[date] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
         limit: int = 10,
     ) -> List[Dict[str, Any]]:
         """Get top knowledge bases by query count.
 
-        Args:
-            target_date: Date to query (default: today)
-            limit: Number of results
+        支持两种模式：
+        1) 单日榜单：仅传 target_date（默认 today）
+        2) 区间榜单：传 start_date/end_date（任一存在即启用），按区间内累计 total_queries 排序
 
-        Returns:
-            List of top knowledge bases
+        返回 items 会尽量补齐：knowledge_name / namespace / created_by_user_id / created_by_user_name。
         """
+
+        # Range mode
+        if start_date is not None or end_date is not None:
+            if end_date is None:
+                end_date = date.today()
+            if start_date is None:
+                start_date = end_date - timedelta(days=6)
+
+            stmt = (
+                select(
+                    KbDailyStats.knowledge_id.label("knowledge_id"),
+                    func.max(KbDailyStats.knowledge_name).label("knowledge_name"),
+                    func.max(KbDailyStats.namespace).label("namespace"),
+                    func.sum(KbDailyStats.total_queries).label("total_queries"),
+                    func.sum(KbDailyStats.rag_retrieval_count).label("rag_retrieval_count"),
+                    func.sum(KbDailyStats.direct_injection_count).label("direct_injection_count"),
+                    func.sum(KbDailyStats.selected_documents_count).label("selected_documents_count"),
+                )
+                .where(KbDailyStats.date >= start_date, KbDailyStats.date <= end_date)
+                .group_by(KbDailyStats.knowledge_id)
+                .order_by(func.sum(KbDailyStats.total_queries).desc())
+                .limit(limit)
+            )
+
+            result = await self.db.execute(stmt)
+            rows = result.all()
+
+            items: List[Dict[str, Any]] = []
+            for idx, row in enumerate(rows):
+                items.append(
+                    {
+                        "rank": idx + 1,
+                        "knowledge_id": row.knowledge_id,
+                        "knowledge_name": row.knowledge_name,
+                        "namespace": row.namespace,
+                        "total_queries": int(row.total_queries or 0),
+                        "rag_retrieval_count": int(row.rag_retrieval_count or 0),
+                        "direct_injection_count": int(row.direct_injection_count or 0),
+                        "selected_documents_count": int(row.selected_documents_count or 0),
+                        "primary_mode": self._get_primary_mode_from_counts(
+                            rag=int(row.rag_retrieval_count or 0),
+                            direct=int(row.direct_injection_count or 0),
+                            selected=int(row.selected_documents_count or 0),
+                        ),
+                    }
+                )
+
+            await self._enrich_kb_items(items)
+            return items
+
+        # Single-day mode (backward compatible)
         if target_date is None:
             target_date = date.today()
 
@@ -239,7 +293,7 @@ class DailyReportService:
         )
         kb_stats = result.scalars().all()
 
-        return [
+        items = [
             {
                 "rank": idx + 1,
                 "knowledge_id": kb.knowledge_id,
@@ -254,85 +308,167 @@ class DailyReportService:
             for idx, kb in enumerate(kb_stats)
         ]
 
-    def _get_primary_mode(self, kb: KbDailyStats) -> str:
-        """Determine primary usage mode for a knowledge base."""
+        await self._enrich_kb_items(items)
+        return items
+
+    def _get_primary_mode_from_counts(self, rag: int, direct: int, selected: int) -> str:
         modes = {
-            "rag_retrieval": kb.rag_retrieval_count,
-            "direct_injection": kb.direct_injection_count,
-            "selected_documents": kb.selected_documents_count,
+            "rag_retrieval": rag,
+            "direct_injection": direct,
+            "selected_documents": selected,
         }
         return max(modes, key=modes.get)
 
+    def _get_primary_mode(self, kb: KbDailyStats) -> str:
+        """Determine primary usage mode for a knowledge base."""
+        return self._get_primary_mode_from_counts(
+            rag=kb.rag_retrieval_count,
+            direct=kb.direct_injection_count,
+            selected=kb.selected_documents_count,
+        )
+
+    async def _enrich_kb_items(self, items: List[Dict[str, Any]]) -> None:
+        """Enrich KB items with name/namespace and creator from Raw DB.
+
+        This avoids UI fallback names like KB-25 when cached fields are null.
+        """
+        if not items:
+            return
+
+        kb_ids: List[int] = []
+        for it in items:
+            kb_id = it.get("knowledge_id")
+            if kb_id is None:
+                continue
+            try:
+                kb_ids.append(int(kb_id))
+            except Exception:
+                continue
+
+        if not kb_ids:
+            return
+
+        kb_meta = await self.raw_tm.fetch_kb_metas(kb_ids)
+        user_ids = [m.get("created_by_user_id") for m in kb_meta.values() if m.get("created_by_user_id")]
+        user_names = await self.raw_tm.fetch_user_names([int(u) for u in user_ids if u is not None])
+
+        for it in items:
+            kb_id = it.get("knowledge_id")
+            if kb_id is None:
+                continue
+
+            meta = kb_meta.get(int(kb_id))
+            if not meta:
+                continue
+
+            it["knowledge_name"] = it.get("knowledge_name") or meta.get("knowledge_name")
+            it["namespace"] = it.get("namespace") or meta.get("namespace")
+
+            created_by_id = meta.get("created_by_user_id")
+            it["created_by_user_id"] = created_by_id
+            it["created_by_user_name"] = user_names.get(int(created_by_id)) if created_by_id else None
+
     async def get_knowledge_base_list(
         self,
-        target_date: Optional[date] = None,
-        sort_by: str = "queries",
+        q: Optional[str] = None,
+        sort_by: str = "id",
         limit: int = 50,
         offset: int = 0,
     ) -> Tuple[List[Dict[str, Any]], int]:
-        """Get paginated list of knowledge bases.
+        """Get paginated knowledge base list (global list from Raw DB).
+
+        Used by the left sidebar navigation page `/knowledge-bases`.
+
+        注意：
+        - Raw DB 提供“目录信息”（名称/namespace/creator/描述/类型/创建时间等）
+        - “最近 7 天是否使用 / 查询量”来自本地统计表 `kb_daily_stats` 的聚合
 
         Args:
-            target_date: Date for stats (default: today)
-            sort_by: Sort field ('queries' or 'name')
+            q: Search keyword (id / creator id / name / namespace / creator user_name)
+            sort_by: 'id' | 'name' | 'created_by'
             limit: Page size
             offset: Offset
 
         Returns:
-            (list of knowledge bases, total count)
+            (items, total)
         """
-        if target_date is None:
-            target_date = date.today()
-
-        # Count total
-        count_result = await self.db.execute(
-            select(func.count(KbDailyStats.id)).where(KbDailyStats.date == target_date)
+        items, total = await self.raw_tm.list_knowledge_bases(
+            limit=limit,
+            offset=offset,
+            q=q,
+            sort_by=sort_by,
         )
-        total = count_result.scalar() or 0
 
-        # Query with sorting
-        query = select(KbDailyStats).where(KbDailyStats.date == target_date)
+        # Recent 7d usage overlay from local stats
+        kb_ids: List[int] = []
+        for it in items:
+            kb_id = it.get("knowledge_id")
+            if kb_id is None:
+                continue
+            try:
+                kb_ids.append(int(kb_id))
+            except Exception:
+                continue
 
-        if sort_by == "name":
-            query = query.order_by(KbDailyStats.knowledge_name.asc())
-        else:
-            query = query.order_by(KbDailyStats.total_queries.desc())
+        recent_by_kb: Dict[int, int] = {}
+        if kb_ids:
+            end_date = date.today()
+            start_date = end_date - timedelta(days=6)
 
-        query = query.offset(offset).limit(limit)
-        result = await self.db.execute(query)
-        kb_stats = result.scalars().all()
+            result = await self.db.execute(
+                select(
+                    KbDailyStats.knowledge_id.label("knowledge_id"),
+                    func.sum(KbDailyStats.total_queries).label("total_queries"),
+                )
+                .where(
+                    KbDailyStats.knowledge_id.in_(kb_ids),
+                    KbDailyStats.date >= start_date,
+                    KbDailyStats.date <= end_date,
+                )
+                .group_by(KbDailyStats.knowledge_id)
+            )
+            for row in result.all():
+                recent_by_kb[int(row.knowledge_id)] = int(row.total_queries or 0)
 
-        return [
-            {
-                "knowledge_id": kb.knowledge_id,
-                "knowledge_name": kb.knowledge_name,
-                "namespace": kb.namespace,
-                "total_queries": kb.total_queries,
-                "rag_retrieval_count": kb.rag_retrieval_count,
-                "direct_injection_count": kb.direct_injection_count,
-                "selected_documents_count": kb.selected_documents_count,
-            }
-            for kb in kb_stats
-        ], total
+        # Keep response shape compatible with KnowledgeBaseItem used by frontend.
+        # Stats fields are not available in global list; return 0.
+        normalized: List[Dict[str, Any]] = []
+        for it in items:
+            kb_id = it.get("knowledge_id")
+            kb_id_int = int(kb_id) if kb_id is not None else None
+            recent_7d_queries = recent_by_kb.get(kb_id_int, 0) if kb_id_int is not None else 0
+
+            normalized.append(
+                {
+                    "knowledge_id": it.get("knowledge_id"),
+                    "knowledge_name": it.get("knowledge_name"),
+                    "namespace": it.get("namespace"),
+                    "created_by_user_id": it.get("created_by_user_id"),
+                    "created_by_user_name": it.get("created_by_user_name"),
+                    "description": it.get("description"),
+                    "kb_type": it.get("kb_type"),
+                    "created_at": it.get("created_at"),
+                    "updated_at": it.get("updated_at"),
+                    "recent_7d_queries": recent_7d_queries,
+                    "recent_7d_used": recent_7d_queries > 0,
+                    "total_queries": 0,
+                    "rag_retrieval_count": 0,
+                    "direct_injection_count": 0,
+                    "selected_documents_count": 0,
+                }
+            )
+
+        return normalized, total
 
     async def get_knowledge_base_stats(
         self,
         kb_id: int,
         days: int = 7,
     ) -> Dict[str, Any]:
-        """Get statistics for a specific knowledge base.
-
-        Args:
-            kb_id: Knowledge base ID
-            days: Number of days
-
-        Returns:
-            Knowledge base statistics with trends
-        """
+        """Get statistics for a specific knowledge base."""
         end_date = date.today()
         start_date = end_date - timedelta(days=days - 1)
 
-        # Query daily stats for this KB
         result = await self.db.execute(
             select(KbDailyStats)
             .where(
@@ -344,10 +480,8 @@ class DailyReportService:
         )
         kb_stats = result.scalars().all()
 
-        # Get latest KB info
         latest = kb_stats[-1] if kb_stats else None
 
-        # Calculate totals
         summary = {
             "knowledge_id": kb_id,
             "knowledge_name": latest.knowledge_name if latest else None,
@@ -373,58 +507,8 @@ class DailyReportService:
         }
 
     async def get_knowledge_base_detail(self, kb_id: int) -> Optional[Dict[str, Any]]:
-        """Get knowledge base detail from Raw DB.
-
-        Args:
-            kb_id: Knowledge base ID
-
-        Returns:
-            Knowledge base detail or None
-        """
-        if not is_raw_db_configured():
-            return None
-
-        session_factory = get_raw_session_factory()
-        if session_factory is None:
-            return None
-
-        async with session_factory() as raw_session:
-            query = text("""
-                SELECT id, user_id, name, namespace, json, is_active, created_at, updated_at
-                FROM kinds
-                WHERE kind = 'KnowledgeBase' AND id = :kb_id
-            """)
-
-            result = await raw_session.execute(query, {"kb_id": kb_id})
-            row = result.fetchone()
-
-            if not row:
-                return None
-
-            import json
-            kb_json = row.json
-            if isinstance(kb_json, str):
-                kb_json = json.loads(kb_json)
-
-            spec = kb_json.get("spec", {})
-            retrieval_config = spec.get("retrievalConfig", {})
-
-            return {
-                "id": row.id,
-                "name": spec.get("name", row.name),
-                "namespace": row.namespace,
-                "kb_type": spec.get("kbType"),
-                "is_active": row.is_active,
-                "retrieval_config": {
-                    "retriever_name": retrieval_config.get("retriever_name"),
-                    "retrieval_mode": retrieval_config.get("retrieval_mode"),
-                    "top_k": retrieval_config.get("top_k"),
-                    "score_threshold": retrieval_config.get("score_threshold"),
-                    "embedding_model": retrieval_config.get("embedding_config", {}).get("model_name"),
-                },
-                "created_at": row.created_at.isoformat() if row.created_at else None,
-                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-            }
+        """Get knowledge base detail from Raw DB (including creator info)."""
+        return await self.raw_tm.get_kb_detail(kb_id)
 
     async def get_knowledge_base_queries(
         self,
@@ -434,32 +518,18 @@ class DailyReportService:
         injection_mode: Optional[str] = None,
         evaluation_status: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
-        """Get recent queries for a knowledge base.
-
-        Args:
-            kb_id: Knowledge base ID
-            limit: Page size
-            offset: Offset
-            injection_mode: Filter by injection mode
-            evaluation_status: Filter by evaluation status
-
-        Returns:
-            (list of queries, total count)
-        """
-        # Build filter conditions
+        """Get recent queries for a knowledge base."""
         conditions = [RagRecordRef.knowledge_id == kb_id]
         if injection_mode:
             conditions.append(RagRecordRef.injection_mode == injection_mode)
         if evaluation_status:
             conditions.append(RagRecordRef.evaluation_status == evaluation_status)
 
-        # Count total
         count_result = await self.db.execute(
             select(func.count(RagRecordRef.id)).where(and_(*conditions))
         )
         total = count_result.scalar() or 0
 
-        # Query refs
         result = await self.db.execute(
             select(RagRecordRef)
             .where(and_(*conditions))
@@ -472,96 +542,45 @@ class DailyReportService:
         if not refs:
             return [], total
 
-        # Fetch details from Raw DB
         raw_ids = [ref.raw_id for ref in refs]
-        raw_details = await self._fetch_raw_details(raw_ids)
+        raw_details = await self.raw_tm.fetch_subtask_context_details(raw_ids)
 
-        # Combine data
-        queries = []
+        queries: List[Dict[str, Any]] = []
         for ref in refs:
             raw_detail = raw_details.get(ref.raw_id, {})
             rag_result = raw_detail.get("type_data", {}).get("rag_result", {})
 
-            queries.append({
-                "id": ref.id,
-                "raw_id": ref.raw_id,
-                "record_date": ref.record_date.isoformat() if ref.record_date else None,
-                "context_type": ref.context_type,
-                "injection_mode": ref.injection_mode,
-                "evaluation_status": ref.evaluation_status,
-                "query": rag_result.get("query"),
-                "chunks_count": rag_result.get("chunks_count"),
-                "sources": rag_result.get("sources"),
-                "created_at": raw_detail.get("created_at"),
-            })
+            queries.append(
+                {
+                    "id": ref.id,
+                    "raw_id": ref.raw_id,
+                    "record_date": ref.record_date.isoformat() if ref.record_date else None,
+                    "context_type": ref.context_type,
+                    "injection_mode": ref.injection_mode,
+                    "evaluation_status": ref.evaluation_status,
+                    "query": rag_result.get("query"),
+                    "chunks_count": rag_result.get("chunks_count"),
+                    "sources": rag_result.get("sources"),
+                    "created_at": raw_detail.get("created_at"),
+                }
+            )
 
         return queries, total
 
     async def _fetch_raw_details(self, raw_ids: List[int]) -> Dict[int, Dict[str, Any]]:
-        """Fetch raw record details from Raw DB.
-
-        Args:
-            raw_ids: List of raw IDs
-
-        Returns:
-            Dict mapping raw_id to detail
-        """
-        if not raw_ids or not is_raw_db_configured():
-            return {}
-
-        session_factory = get_raw_session_factory()
-        if session_factory is None:
-            return {}
-
-        async with session_factory() as raw_session:
-            query = text("""
-                SELECT id, context_type, name, type_data, created_at
-                FROM subtask_contexts
-                WHERE id IN :raw_ids
-            """)
-
-            result = await raw_session.execute(query, {"raw_ids": tuple(raw_ids)})
-
-            details = {}
-            for row in result.fetchall():
-                import json
-                type_data = row.type_data
-                if isinstance(type_data, str):
-                    type_data = json.loads(type_data)
-
-                details[row.id] = {
-                    "context_type": row.context_type,
-                    "name": row.name,
-                    "type_data": type_data,
-                    "created_at": row.created_at.isoformat() if row.created_at else None,
-                }
-
-            return details
+        """Backward-compatible wrapper."""
+        return await self.raw_tm.fetch_subtask_context_details(raw_ids)
 
     async def get_rag_record_detail(self, record_id: int) -> Optional[Dict[str, Any]]:
-        """Get detailed RAG record by local ID.
-
-        Args:
-            record_id: Local rag_record_refs ID
-
-        Returns:
-            Full record detail or None
-        """
-        # Get local ref
-        result = await self.db.execute(
-            select(RagRecordRef).where(RagRecordRef.id == record_id)
-        )
+        """Get detailed RAG record by local ID."""
+        result = await self.db.execute(select(RagRecordRef).where(RagRecordRef.id == record_id))
         ref = result.scalar_one_or_none()
-
         if not ref:
             return None
 
-        # Fetch raw detail
-        raw_details = await self._fetch_raw_details([ref.raw_id])
+        raw_details = await self.raw_tm.fetch_subtask_context_details([ref.raw_id])
         raw_detail = raw_details.get(ref.raw_id, {})
-
-        # Fetch extracted_text separately (it's large)
-        extracted_text = await self._fetch_extracted_text(ref.raw_id)
+        extracted_text = await self.raw_tm.fetch_extracted_text(ref.raw_id)
 
         return {
             "id": ref.id,
@@ -579,29 +598,5 @@ class DailyReportService:
         }
 
     async def _fetch_extracted_text(self, raw_id: int) -> Optional[str]:
-        """Fetch extracted_text from Raw DB.
-
-        Args:
-            raw_id: Raw record ID
-
-        Returns:
-            Extracted text or None
-        """
-        if not is_raw_db_configured():
-            return None
-
-        session_factory = get_raw_session_factory()
-        if session_factory is None:
-            return None
-
-        async with session_factory() as raw_session:
-            query = text("""
-                SELECT extracted_text
-                FROM subtask_contexts
-                WHERE id = :raw_id
-            """)
-
-            result = await raw_session.execute(query, {"raw_id": raw_id})
-            row = result.fetchone()
-
-            return row.extracted_text if row else None
+        """Fetch extracted_text from Raw DB."""
+        return await self.raw_tm.fetch_extracted_text(raw_id)

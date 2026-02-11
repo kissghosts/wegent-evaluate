@@ -1,6 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import {
+  getLastNDaysDateRange,
+  QuickDaysSelector,
+} from '@/components/common/date-range-selector'
 import { useTranslation } from 'react-i18next'
 import { useRouter } from 'next/navigation'
 import {
@@ -109,16 +113,26 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [trendDays, setTrendDays] = useState(7)
+
+  // Dashboard-wide time range (affects overview + trend + top-kb)
+  const [rangeDays, setRangeDays] = useState(7)
+  const dateRange = getLastNDaysDateRange(rangeDays)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const [overviewData, trendsData, topKbsData, syncStatusData] = await Promise.all([
-        getDailyOverview(),
-        getDailyTrends({ days: trendDays }),
-        getTopKnowledgeBases({ limit: 10 }),
+        getDailyOverview({
+          start_date: dateRange.startDate,
+          end_date: dateRange.endDate,
+        }),
+        getDailyTrends({ days: rangeDays }),
+        getTopKnowledgeBases({
+          limit: 10,
+          start_date: dateRange.startDate,
+          end_date: dateRange.endDate,
+        }),
         getSyncStatus(),
       ])
 
@@ -131,7 +145,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [trendDays])
+  }, [rangeDays])
 
   useEffect(() => {
     fetchData()
@@ -165,7 +179,18 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{t('dashboard.title')}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold">{t('dashboard.title')}</h1>
+          <QuickDaysSelector
+            value={rangeDays}
+            options={[
+              { days: 7, label: t('dashboard.last7Days') },
+              { days: 30, label: t('dashboard.last30Days') },
+            ]}
+            onChange={setRangeDays}
+          />
+        </div>
+
         <div className="flex items-center gap-2">
           {syncStatus && (
             <span className="text-sm text-muted-foreground">
@@ -248,23 +273,8 @@ export default function DashboardPage() {
                 <TrendingUp className="h-5 w-5 text-primary" />
                 <h2 className="text-lg font-semibold">{t('dashboard.queryTrend')}</h2>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setTrendDays(7)}
-                  className={`px-3 py-1 text-sm rounded ${
-                    trendDays === 7 ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                  }`}
-                >
-                  {t('dashboard.last7Days')}
-                </button>
-                <button
-                  onClick={() => setTrendDays(30)}
-                  className={`px-3 py-1 text-sm rounded ${
-                    trendDays === 30 ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                  }`}
-                >
-                  {t('dashboard.last30Days')}
-                </button>
+              <div className="text-sm text-muted-foreground">
+                {dateRange.startDate} ~ {dateRange.endDate}
               </div>
             </div>
 
@@ -354,6 +364,11 @@ export default function DashboardPage() {
                         </td>
                         <td className="py-3 pr-4 font-medium">
                           {kb.knowledge_name || `KB-${kb.knowledge_id}`}
+                          {kb.created_by_user_name && (
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              @{kb.created_by_user_name}
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 pr-4 text-muted-foreground">
                           {kb.namespace || 'default'}

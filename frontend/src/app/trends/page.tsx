@@ -1,6 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import {
+  DateRangeInputs,
+  getLastNDaysDateRange,
+} from '@/components/common/date-range-selector'
 import { useTranslation } from 'react-i18next'
 import { TrendChart } from '@/components/charts/trend-chart'
 import { getTrends } from '@/apis/analytics'
@@ -20,20 +24,9 @@ export default function TrendsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Default to last 30 days
-  const getDefaultDates = () => {
-    const endDate = new Date()
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - 30)
-    return {
-      start: startDate.toISOString().split('T')[0],
-      end: endDate.toISOString().split('T')[0],
-    }
-  }
-
-  const defaultDates = getDefaultDates()
-  const [startDate, setStartDate] = useState(defaultDates.start)
-  const [endDate, setEndDate] = useState(defaultDates.end)
+  const defaultDates = getLastNDaysDateRange(30)
+  const [startDate, setStartDate] = useState(defaultDates.startDate)
+  const [endDate, setEndDate] = useState(defaultDates.endDate)
   const [metric, setMetric] = useState<'faithfulness' | 'answer_relevancy' | 'context_precision' | 'overall'>('overall')
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day')
 
@@ -87,18 +80,11 @@ export default function TrendsPage() {
       <div className="flex flex-wrap gap-4 rounded-lg border bg-card p-4">
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium">{t('results.dateRange')}:</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="rounded-md border bg-background px-3 py-1.5 text-sm"
-          />
-          <span>{t('common.to')}</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="rounded-md border bg-background px-3 py-1.5 text-sm"
+          <DateRangeInputs
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
           />
         </div>
         <div className="flex items-center gap-2">

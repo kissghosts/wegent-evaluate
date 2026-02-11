@@ -59,6 +59,8 @@ class KnowledgeBaseDetailResponse(BaseModel):
     namespace: Optional[str] = None
     kb_type: Optional[str] = None
     is_active: Optional[bool] = None
+    created_by_user_id: Optional[int] = None
+    created_by_user_name: Optional[str] = None
     retrieval_config: Optional[dict] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -157,17 +159,17 @@ async def get_hourly_stats(
 
 @router.get("/knowledge-bases", response_model=KnowledgeBaseListResponse)
 async def get_knowledge_bases(
-    target_date: Optional[date] = Query(None, description="Date for stats (default: today)"),
-    sort_by: str = Query("queries", description="Sort by: queries or name"),
+    q: Optional[str] = Query(None, description="Search by id / creator / name / namespace"),
+    sort_by: str = Query("id", description="Sort by: id | name | created_by"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get paginated list of knowledge bases."""
+    """Get paginated global list of knowledge bases (from Raw DB)."""
     service = DailyReportService(db)
     offset = (page - 1) * page_size
     items, total = await service.get_knowledge_base_list(
-        target_date=target_date,
+        q=q,
         sort_by=sort_by,
         limit=page_size,
         offset=offset,
@@ -183,14 +185,29 @@ async def get_knowledge_bases(
 @router.get("/knowledge-bases/top", response_model=TopKnowledgeBasesResponse)
 async def get_top_knowledge_bases(
     target_date: Optional[date] = Query(None, description="Date for ranking (default: today)"),
+    start_date: Optional[date] = Query(None, description="Start date for range ranking (optional)"),
+    end_date: Optional[date] = Query(None, description="End date for range ranking (optional)"),
     limit: int = Query(10, ge=1, le=50, description="Number of results"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get top knowledge bases by query count."""
+    """Get top knowledge bases by query count.
+
+    - If start_date/end_date provided: return range ranking (sum across dates)
+    - Else: return single-day ranking by target_date (default: today)
+    """
     service = DailyReportService(db)
-    items = await service.get_top_knowledge_bases(target_date=target_date, limit=limit)
+    items = await service.get_top_knowledge_bases(
+        target_date=target_date,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+    )
+
+    # For response `date` field: prioritize explicit target_date; else show end_date/today
+    resp_date = (target_date or end_date or date.today()).isoformat()
+
     return TopKnowledgeBasesResponse(
-        date=(target_date or date.today()).isoformat(),
+        date=resp_date,
         items=items,
     )
 

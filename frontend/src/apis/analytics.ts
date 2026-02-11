@@ -2,7 +2,7 @@
  * API client for analytics endpoints
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:18000'
+import { apiUrl } from './base'
 
 export async function getTrends(params: {
   start_date: string
@@ -20,9 +20,7 @@ export async function getTrends(params: {
     }
   })
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/analytics/trends?${searchParams.toString()}`
-  )
+  const response = await fetch(apiUrl(`/analytics/trends?${searchParams.toString()}`))
   if (!response.ok) throw new Error('Failed to get trends')
   return response.json()
 }
@@ -40,7 +38,7 @@ export async function getRetrieverComparison(params: {
   })
 
   const response = await fetch(
-    `${API_BASE_URL}/api/analytics/comparison/retriever?${searchParams.toString()}`
+    apiUrl(`/analytics/comparison/retriever?${searchParams.toString()}`)
   )
   if (!response.ok) throw new Error('Failed to get retriever comparison')
   return response.json()
@@ -59,16 +57,14 @@ export async function getEmbeddingComparison(params: {
   })
 
   const response = await fetch(
-    `${API_BASE_URL}/api/analytics/comparison/embedding?${searchParams.toString()}`
+    apiUrl(`/analytics/comparison/embedding?${searchParams.toString()}`)
   )
   if (!response.ok) throw new Error('Failed to get embedding comparison')
   return response.json()
 }
 
 export async function getContextComparison(subtaskContextId: number) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/analytics/comparison/context/${subtaskContextId}`
-  )
+  const response = await fetch(apiUrl(`/analytics/comparison/context/${subtaskContextId}`))
   if (!response.ok) throw new Error('Failed to get context comparison')
   return response.json()
 }
@@ -85,9 +81,7 @@ export async function getIssuesAnalytics(params: {
     }
   })
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/analytics/issues?${searchParams.toString()}`
-  )
+  const response = await fetch(apiUrl(`/analytics/issues?${searchParams.toString()}`))
   if (!response.ok) throw new Error('Failed to get issues analytics')
   return response.json()
 }
