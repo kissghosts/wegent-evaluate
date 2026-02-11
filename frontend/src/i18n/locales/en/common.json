@@ -320,7 +320,8 @@
     "sources": "Sources",
     "triggerEvaluation": "Evaluate",
     "modeDistribution": "Mode Distribution",
-    "usageTrend": "Usage Trend"
+    "usageTrend": "Usage Trend",
+    "recent7dUsage": "7d Usage"
   },
   "queries": {
     "title": "Query Records",

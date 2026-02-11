@@ -96,13 +96,12 @@ export default function KnowledgeBasesPage() {
                   <th className="px-4 py-3">{t('knowledgeBase.description', 'Description')}</th>
                   <th className="px-4 py-3">{t('knowledgeBase.type', 'Type')}</th>
                   <th className="px-4 py-3">{t('knowledgeBase.createdAt', 'Created')}</th>
-                  <th className="px-4 py-3">{t('knowledgeBase.recent7d', 'Recent 7d')}</th>
+                  <th className="px-4 py-3">{t('knowledgeBase.recent7dUsage', '7d Usage')}</th>
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((kb) => {
                   const recent7d = kb.recent_7d_queries ?? 0
-                  const isUsed = kb.recent_7d_used ?? recent7d > 0
 
                   return (
                     <tr
@@ -135,15 +134,13 @@ export default function KnowledgeBasesPage() {
                         <span className="text-sm text-muted-foreground">{kb.created_at || '-'}</span>
                       </td>
                       <td className="px-4 py-3">
-                        {isUsed ? (
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-                            {t('common.yes', 'Yes')} ({recent7d})
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-                            {t('common.no', 'No')}
-                          </span>
-                        )}
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                          recent7d > 0
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {recent7d}
+                        </span>
                       </td>
                     </tr>
                   )
