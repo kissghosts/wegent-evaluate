@@ -274,11 +274,13 @@ async def get_global_queries(
     injection_mode: Optional[str] = Query(None, description="Filter by injection mode (rag_retrieval, direct_injection, selected_documents)"),
     start_date: Optional[date] = Query(None, description="Filter by start date"),
     end_date: Optional[date] = Query(None, description="Filter by end date"),
+    evaluation_status: Optional[str] = Query(None, description="Filter by evaluation status (pending, completed, failed, skipped)"),
+    evaluation_judgment: Optional[str] = Query(None, description="Filter by evaluation judgment (pass, fail, undetermined)"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get global query list (all queries across all knowledge bases).
 
-    Returns queries with associated knowledge base information.
+    Returns queries with associated knowledge base and evaluation information.
     """
     service = DailyReportService(db)
     offset = (page - 1) * page_size
@@ -288,6 +290,8 @@ async def get_global_queries(
         injection_mode=injection_mode,
         start_date=start_date,
         end_date=end_date,
+        evaluation_status=evaluation_status,
+        evaluation_judgment=evaluation_judgment,
     )
     return QueryListResponse(
         items=items,

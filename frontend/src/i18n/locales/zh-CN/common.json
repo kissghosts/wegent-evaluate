@@ -34,7 +34,8 @@
     "issues": "问题分析",
     "metricsDocs": "指标文档",
     "settings": "设置",
-    "evaluationCenter": "评测中心"
+    "evaluationCenter": "评测中心",
+    "evaluationOverview": "评估总览"
   },
   "dashboard": {
     "title": "RAG 日报",
@@ -340,5 +341,41 @@
     "completed": "已完成",
     "failed": "失败",
     "skipped": "已跳过"
+  },
+  "evaluation": {
+    "title": "评估总览",
+    "ragOverview": "RAG 评估概览",
+    "nonRagStats": "非 RAG 使用情况",
+    "effectChange": "效果变化",
+    "evaluated": "已评估",
+    "coverage": "覆盖率",
+    "passRate": "通过率",
+    "directInjection": "直接注入",
+    "selectedDocs": "指定文档",
+    "nonRagRatio": "非 RAG 占比",
+    "dayOverDay": "日环比",
+    "weekOverWeek": "周环比",
+    "scoreChange": "分数变化",
+    "trendChart": "评估趋势",
+    "periodComparison": "时间段对比",
+    "metric": "指标",
+    "change": "变化",
+    "evaluatedCount": "已评估数量",
+    "avgScore": "平均分",
+    "lowScoreRanking": "低分排行榜",
+    "byQuery": "按查询",
+    "byKB": "按知识库",
+    "query": "查询",
+    "knowledgeBase": "知识库",
+    "totalScore": "总分",
+    "judgment": "判定",
+    "triggerEvaluation": "触发评估",
+    "evaluating": "评估中...",
+    "triggerDescription": "将对所选日期范围内的所有 RAG 检索记录进行评估。",
+    "startEvaluation": "开始评估",
+    "notEvaluable": "不可评估",
+    "pass": "通过",
+    "fail": "失败",
+    "undetermined": "待定"
   }
 }
