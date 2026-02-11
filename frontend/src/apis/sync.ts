@@ -3,10 +3,10 @@
  */
 import type { SyncTriggerRequest } from '@/types'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:18000'
+import { apiUrl } from './base'
 
 export async function triggerSync(params: SyncTriggerRequest) {
-  const response = await fetch(`${API_BASE_URL}/api/sync/trigger`, {
+  const response = await fetch(apiUrl('/sync/trigger'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
@@ -19,7 +19,7 @@ export async function triggerSync(params: SyncTriggerRequest) {
 }
 
 export async function getSyncStatus(syncId: string) {
-  const response = await fetch(`${API_BASE_URL}/api/sync/status/${syncId}`)
+  const response = await fetch(apiUrl(`/sync/status/${syncId}`))
   if (!response.ok) throw new Error('Failed to get sync status')
   return response.json()
 }
@@ -35,9 +35,7 @@ export async function getSyncHistory(params: {
     }
   })
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/sync/history?${searchParams.toString()}`
-  )
+  const response = await fetch(apiUrl(`/sync/history?${searchParams.toString()}`))
   if (!response.ok) throw new Error('Failed to get sync history')
   return response.json()
 }

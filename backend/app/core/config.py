@@ -23,10 +23,13 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     # Database configuration
-    DATABASE_URL: str = "mysql+asyncmy://user:password@localhost:13306/wegent_evaluate"
+    DATABASE_URL: str = "mysql+asyncmy://user:password@localhost:3306/wegent_evaluate"
+
+    # Raw DB configuration (read-only access to task_manager database)
+    RAW_DATABASE_URL: Optional[str] = None  # e.g., "mysql+asyncmy://user:pass@host:port/task_manager"
 
     # External API configuration
-    EXTERNAL_API_BASE_URL: str = "http://localhost:18000"
+    EXTERNAL_API_BASE_URL: str = "http://localhost:8000"
     EXTERNAL_API_QA_HISTORY_PATH: str = "/api/v1/knowledge-base/qa-history"
 
     # External API authentication configuration
@@ -54,6 +57,11 @@ class Settings(BaseSettings):
     SYNC_CRON_EXPRESSION: str = "0 2 * * *"  # Daily at 2 AM
     EVALUATION_CRON_EXPRESSION: str = "0 4 * * *"  # Daily at 4 AM
 
+    # Raw data sync task configuration
+    RAW_SYNC_HOURLY_CRON: str = "0 * * * *"  # Every hour at minute 0
+    RAW_SYNC_DAILY_CRON: str = "0 1 * * *"  # Daily at 1 AM
+    RAW_SYNC_LOOKBACK_HOURS: int = 2  # Lookback hours for incremental sync (fault tolerance)
+
     # Evaluation batch configuration
     EVALUATION_BATCH_SIZE: int = 10
     EVALUATION_CONCURRENCY: int = 1
@@ -62,7 +70,7 @@ class Settings(BaseSettings):
     EVALUATION_CORE_THRESHOLD: float = 0.6
 
     # Frontend URL for CORS
-    FRONTEND_URL: str = "http://localhost:13000"
+    FRONTEND_URL: str = "http://localhost:3000"
 
     # Excluded User IDs for filtering (comma-separated list)
     EXCLUDED_USER_IDS: str = ""

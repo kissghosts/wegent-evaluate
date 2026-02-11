@@ -12,6 +12,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     # Database
     "sqlalchemy>=2.0.25",
+    "greenlet>=3.0.0",
     "pymysql>=1.1.0",
     "asyncmy>=0.2.9",
     "cryptography>=42.0.4",

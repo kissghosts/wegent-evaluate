@@ -3,7 +3,7 @@
  */
 import type { DataVersion } from '@/types'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:18000'
+import { apiUrl } from './base'
 
 export interface VersionListResponse {
   items: DataVersion[]
@@ -11,19 +11,19 @@ export interface VersionListResponse {
 }
 
 export async function getVersions(): Promise<VersionListResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/versions`)
+  const response = await fetch(apiUrl('/versions'))
   if (!response.ok) throw new Error('Failed to get versions')
   return response.json()
 }
 
 export async function getLatestVersion(): Promise<DataVersion> {
-  const response = await fetch(`${API_BASE_URL}/api/versions/latest`)
+  const response = await fetch(apiUrl('/versions/latest'))
   if (!response.ok) throw new Error('Failed to get latest version')
   return response.json()
 }
 
 export async function getVersion(versionId: number): Promise<DataVersion> {
-  const response = await fetch(`${API_BASE_URL}/api/versions/${versionId}`)
+  const response = await fetch(apiUrl(`/versions/${versionId}`))
   if (!response.ok) throw new Error('Failed to get version')
   return response.json()
 }

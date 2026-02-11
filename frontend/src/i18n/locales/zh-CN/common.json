@@ -25,16 +25,41 @@
     "end": "结束"
   },
   "nav": {
-    "dashboard": "仪表盘",
+    "dashboard": "总览",
+    "knowledgeBases": "知识库",
+    "queries": "查询记录",
     "results": "评估结果",
     "trends": "趋势分析",
     "comparison": "对比分析",
     "issues": "问题分析",
     "metricsDocs": "指标文档",
-    "settings": "设置"
+    "settings": "设置",
+    "evaluationCenter": "评测中心"
   },
   "dashboard": {
-    "title": "仪表盘",
+    "title": "RAG 日报",
+    "totalQueries": "总查询量",
+    "ragRetrieval": "RAG 检索",
+    "directInjection": "直接注入",
+    "selectedDocuments": "指定文档",
+    "activeKnowledgeBases": "活跃知识库",
+    "activeUsers": "活跃用户",
+    "todayVsYesterday": "较昨日",
+    "queryTrend": "查询趋势",
+    "last7Days": "近7天",
+    "last30Days": "近30天",
+    "topKnowledgeBases": "Top 10 知识库",
+    "rank": "排名",
+    "knowledgeBaseName": "名称",
+    "namespace": "命名空间",
+    "queries": "查询量",
+    "primaryMode": "主要模式",
+    "viewDetail": "查看详情",
+    "noDataYet": "暂无数据，请配置 Raw DB 并触发同步。",
+    "syncStatus": "同步状态",
+    "lastSync": "上次同步",
+    "triggerSync": "触发同步",
+    "syncing": "同步中...",
     "totalRecords": "总记录数",
     "evaluated": "已评估",
     "pending": "待评估",
@@ -49,7 +74,6 @@
     "recentTrend": "近7天趋势",
     "recentIssues": "近期问题",
     "quickActions": "快捷操作",
-    "triggerSync": "触发同步",
     "triggerEvaluation": "触发评估"
   },
   "results": {
@@ -272,5 +296,49 @@
     "copied": "已复制！",
     "error_select_version": "请选择一个版本",
     "error_generate": "生成报告失败"
+  },
+  "knowledgeBase": {
+    "title": "知识库",
+    "detail": "知识库详情",
+    "config": "配置信息",
+    "retriever": "检索引擎",
+    "embeddingModel": "Embedding 模型",
+    "topK": "Top K",
+    "scoreThreshold": "分数阈值",
+    "retrievalMode": "检索模式",
+    "kbType": "类型",
+    "status": "状态",
+    "active": "启用",
+    "inactive": "停用",
+    "recentQueries": "最近查询",
+    "queryContent": "查询内容",
+    "mode": "模式",
+    "chunksCount": "分块数",
+    "evaluationStatus": "评测状态",
+    "expand": "展开",
+    "collapse": "收起",
+    "sources": "来源",
+    "triggerEvaluation": "评测",
+    "modeDistribution": "模式分布",
+    "usageTrend": "使用趋势",
+    "recent7dUsage": "近7日使用量"
+  },
+  "queries": {
+    "title": "查询记录",
+    "filterByMode": "按模式筛选",
+    "allModes": "全部模式",
+    "noKnowledgeBase": "无关联知识库"
+  },
+  "ragMode": {
+    "rag_retrieval": "RAG 检索",
+    "direct_injection": "直接注入",
+    "selected_documents": "指定文档",
+    "unknown": "未知"
+  },
+  "evalStatus": {
+    "pending": "待评测",
+    "completed": "已完成",
+    "failed": "失败",
+    "skipped": "已跳过"
   }
 }

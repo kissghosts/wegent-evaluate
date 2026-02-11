@@ -17,6 +17,11 @@ __pycache__/
 venv/
 ENV/
 
+# pyenv
+.python-version
+*.tsbuildinfo
+coverage/
+
 # Node.js
 node_modules/
 .next/
