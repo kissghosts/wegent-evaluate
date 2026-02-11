@@ -146,6 +146,7 @@ export default function QueriesPage() {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1 flex-wrap">
+                      <span className="font-mono text-xs">#{query.id}/{query.raw_id}</span>
                       <span>{query.created_at ? new Date(query.created_at).toLocaleString() : '-'}</span>
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                         query.injection_mode === 'rag_retrieval'
